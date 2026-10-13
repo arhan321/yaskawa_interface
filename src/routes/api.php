@@ -15,6 +15,12 @@ declare(strict_types=1);
  | - Collector authorization Gate: rms.ingest; Sanctum 'abilities' alias.
  | Gates intentionally DENY writes until explicitly implemented.
  | - Machine ingestion must require a dedicated bearer token, NOT SPA cookie.
+ |
+ | Health Intelligence additions:
+ | - Rule-based robot health summary
+ | - Statistical anomaly events
+ | - Predictive maintenance forecasts
+ | - Technician acknowledgement / review / feedback
  */
 
 use App\Http\Controllers\Api\AlarmController;
@@ -29,6 +35,10 @@ use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RobotController;
 use App\Http\Controllers\Api\RobotRegistryController;
 use App\Http\Controllers\Api\TelemetryController;
+
+// RMS HEALTH INTELLIGENCE API
+use App\Http\Controllers\Api\HealthIntelligenceController;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -97,6 +107,44 @@ Route::prefix('v1')
         Route::get('/analytics/data-quality', [AnalyticsController::class, 'dataQuality'])
             ->name('analytics.data-quality');
 
+        // ====================================================
+        // RMS HEALTH INTELLIGENCE - FASE 1 / 2 / 3 READ API
+        // ====================================================
+
+        /*
+         * FASE 1 - RULE-BASED HEALTH
+         * GET /api/v1/health-intelligence/summary
+         * GET /api/v1/health-intelligence/robots/{robot}
+         *
+         * FASE 2 - ANOMALY DETECTION
+         * GET /api/v1/anomaly/events
+         *
+         * FASE 3 - PREDICTIVE MAINTENANCE
+         * GET /api/v1/predictive/forecasts
+         */
+
+        Route::get('/health-intelligence/summary', [
+            HealthIntelligenceController::class,
+            'summary'
+        ])->name('health-intelligence.summary');
+
+        Route::get('/health-intelligence/robots/{robot}', [
+            HealthIntelligenceController::class,
+            'robot'
+        ])
+        ->whereNumber('robot')
+        ->name('health-intelligence.robot');
+
+        Route::get('/anomaly/events', [
+            HealthIntelligenceController::class,
+            'anomalies'
+        ])->name('anomaly.events');
+
+        Route::get('/predictive/forecasts', [
+            HealthIntelligenceController::class,
+            'predictions'
+        ])->name('predictive.forecasts');
+
         // Read-only controller/robot registry until admin authorization is set.
         // All writes below are deliberately fail-closed using Gate middleware.
 
@@ -148,5 +196,38 @@ Route::prefix('v1')
                     ->whereNumber('recommendation')->name('recommendations.acknowledge');
                 Route::patch('/recommendations/{recommendation}/resolve', [RecommendationController::class, 'resolve'])
                     ->whereNumber('recommendation')->name('recommendations.resolve');
+
+                // ====================================================
+                // FASE 2 - ANOMALY TECHNICIAN ACTIONS
+                // ====================================================
+
+                // Technician acknowledges an open anomaly event.
+                Route::patch('/anomaly/events/{event}/acknowledge', [
+                    HealthIntelligenceController::class,
+                    'acknowledge'
+                ])
+                ->whereNumber('event')
+                ->name('anomaly.acknowledge');
+
+                // Technician reviews anomaly and labels it confirmed,
+                // false_positive, or inconclusive using a verified maintenance log.
+                Route::patch('/anomaly/events/{event}/review', [
+                    HealthIntelligenceController::class,
+                    'review'
+                ])
+                ->whereNumber('event')
+                ->name('anomaly.review');
+
+                // ====================================================
+                // FASE 3 - PREDICTIVE TECHNICIAN FEEDBACK
+                // ====================================================
+
+                // Technician feedback is later used as retraining evidence.
+                Route::patch('/predictive/forecasts/{prediction}/feedback', [
+                    HealthIntelligenceController::class,
+                    'predictionFeedback'
+                ])
+                ->whereNumber('prediction')
+                ->name('predictive.feedback');
             });
     });

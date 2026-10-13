@@ -31,6 +31,11 @@
 | - Notification Center
 | - Hardware Insights
 | - Feature Status
+| - Robot Health Intelligence
+| - Rule-Based Health Assessment
+| - Statistical Anomaly Detection
+| - Predictive Maintenance
+| - Remaining Useful Life / Condition Forecast
 |
 |--------------------------------------------------------------------------
 */
@@ -53,6 +58,12 @@ use App\Http\Controllers\Web\ConnectionController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\HardwareController;
 use App\Http\Controllers\Web\FeatureController;
+
+// ============================================================
+// RMS HEALTH INTELLIGENCE CONTROLLER
+// ============================================================
+
+use App\Http\Controllers\Web\HealthIntelligenceController;
 
 // ============================================================
 // 1. HOME
@@ -230,6 +241,58 @@ Route::prefix('rms')
             FeatureController::class,
             'index'
         ])->name('features.index');
+
+        // ====================================================
+        // ROBOT HEALTH INTELLIGENCE
+        // ====================================================
+
+        /*
+         * FASE 1 - RULE-BASED HEALTH
+         *
+         * - Healthy / Warning / Critical / Unknown
+         * - NG per Axis S, L, U, R, B, T
+         * - Alarm Severity
+         * - Preventive Maintenance by Operating Hours
+         * - Lifetime to Service
+         * - Maintenance Recommendation
+         * - Robot Health Summary
+         *
+         * FASE 2 - ANOMALY DETECTION
+         *
+         * - Baseline per Robot / Axis / Job
+         * - Statistical Anomaly
+         * - Anomaly Score
+         * - Baseline vs Actual
+         * - Technician Acknowledgement
+         * - Confirmed / False Positive Feedback
+         *
+         * FASE 3 - PREDICTIVE MAINTENANCE
+         *
+         * - Remaining Useful Life / Condition Forecast
+         * - Estimated Time to Threshold
+         * - Root Cause Candidate / Supporting Evidence
+         * - Model Versioning
+         * - Model Accuracy / Evaluation
+         * - Retraining using Verified Technician Inspection
+         *
+         * IMPORTANT:
+         * Predictive values are experimental RMS calculations and are NOT
+         * equivalent to proprietary Yaskawa Cockpit algorithms.
+         */
+
+        // Health Intelligence Overview - all registered robots
+        Route::get('/health', [
+            HealthIntelligenceController::class,
+            'index'
+        ])->name('health.index');
+
+        // Health Intelligence Detail - one robot
+        Route::get('/health/{robot}', [
+            HealthIntelligenceController::class,
+            'show'
+        ])
+        ->whereNumber('robot')
+        ->name('health.show');
 
     });
 
