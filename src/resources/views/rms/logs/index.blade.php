@@ -75,14 +75,50 @@
       </div>
     </div>
 
-    <label class="rms-logs-field">
-      <span>Jenis log</span>
-      <select name="type" class="input">
-        @foreach($types as $value => $label)
-          <option value="{{ $value }}" @selected($filters['type'] === $value)>{{ $label }}</option>
+    {{-- Multi-select types: no types[] means ALL sources; submitted IDs are validated in controller. --}}
+    <div class="rms-logs-field rms-logs-type-field">
+      <span id="rms-logs-type-label">Jenis log (boleh lebih dari satu)</span>
+      <details class="rms-logs-type-select" id="rms-logs-type-select">
+        <summary class="rms-logs-type-trigger" aria-labelledby="rms-logs-type-label rms-logs-type-summary">
+          <span id="rms-logs-type-summary">
+            @if(count($filters['types']) === 0)
+              Semua jenis log
+            @elseif(count($filters['types']) === 1)
+              {{ $types[$filters['types'][0]] ?? '1 jenis log dipilih' }}
+            @else
+              {{ count($filters['types']) }} jenis log dipilih
+            @endif
+          </span>
+          <span class="rms-logs-type-caret" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="rms-logs-type-menu">
+          <div class="rms-logs-type-tools">
+            <button type="button" class="rms-logs-type-tool" id="rms-logs-type-all">Semua jenis</button>
+            <button type="button" class="rms-logs-type-tool" id="rms-logs-type-events">Event penting</button>
+            <button type="button" class="rms-logs-type-tool" id="rms-logs-type-select-all">Pilih semua</button>
+          </div>
+          <div class="rms-logs-type-options" role="group" aria-labelledby="rms-logs-type-label">
+            @foreach($types as $value => $label)
+              <label class="rms-logs-type-option">
+                <input type="checkbox" name="types[]" value="{{ $value }}"
+                       data-type-label="{{ $label }}"
+                       data-important="{{ in_array($value, ['alarm_event', 'connection', 'health', 'maintenance', 'recommendation'], true) ? '1' : '0' }}"
+                       @checked(in_array($value, $filters['types'], true))>
+                <span>{{ $label }}</span>
+              </label>
+            @endforeach
+          </div>
+          <p class="rms-logs-type-help">Tanpa centang = semua jenis. Pilih beberapa untuk membatasi log.</p>
+          <button type="button" class="btn rms-logs-type-done" id="rms-logs-type-done">Selesai memilih</button>
+        </div>
+      </details>
+      <div class="rms-logs-selected-types" id="rms-logs-selected-types" aria-live="polite"
+           @if(count($filters['types']) === 0) hidden @endif>
+        @foreach($filters['types'] as $type)
+          <span class="rms-logs-type-chip">{{ $types[$type] ?? $type }}</span>
         @endforeach
-      </select>
-    </label>
+      </div>
+    </div>
 
     <label class="rms-logs-field">
       <span>Filter waktu</span>
@@ -129,13 +165,19 @@
       <h2>Hasil log</h2>
       <p>
         {{ $filters['from'] }} hingga {{ $filters['to'] }} WIB
-        · {{ $types[$filters['type']] }}
+        · @if(count($filters['types']) === 0)
+            Semua jenis log
+          @elseif(count($filters['types']) === 1)
+            {{ $types[$filters['types'][0]] ?? '1 jenis log dipilih' }}
+          @else
+            {{ count($filters['types']) }} jenis log dipilih
+          @endif
         · {{ count($filters['robot_ids']) === 0 ? 'Seluruh robot' : count($filters['robot_ids']) . ' robot terpilih' }}
       </p>
     </div>
     <a class="btn rms-logs-export" href="{{ $exportUrl }}">↓ Export CSV</a>
   </div>
-  <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Jenis <strong>Semua</strong> termasuk telemetry 1 detik; pilih <strong>Event penting</strong> untuk melihat alarm dan maintenance tanpa tenggelam oleh sampel berkala.</div>
+  <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Jenis <strong>Semua</strong> termasuk telemetry 1 detik; klik <strong>Event penting</strong> di filter Jenis log untuk melihat alarm dan maintenance tanpa tenggelam oleh sampel berkala.</div>
 
   <div class="table-wrap rms-logs-table-wrap">
     <table class="data-table rms-logs-table">

@@ -71,3 +71,49 @@
   });
   renderSelection();
 })();
+
+// Multi-select jenis log: the query, pagination, and CSV export all use the same types[].
+(() => {
+  const picker = document.getElementById('rms-logs-type-select');
+  const summary = document.getElementById('rms-logs-type-summary');
+  const chips = document.getElementById('rms-logs-selected-types');
+  const options = Array.from(document.querySelectorAll('#rms-logs-type-select input[name="types[]"]'));
+  const all = document.getElementById('rms-logs-type-all');
+  const events = document.getElementById('rms-logs-type-events');
+  const selectAll = document.getElementById('rms-logs-type-select-all');
+  const done = document.getElementById('rms-logs-type-done');
+  if (!picker || !summary || !chips) return;
+
+  function renderSelection() {
+    const selected = options.filter(option => option.checked);
+    summary.textContent = selected.length === 0
+      ? 'Semua jenis log'
+      : selected.length === 1
+        ? (selected[0].dataset.typeLabel ?? selected[0].value)
+        : `${selected.length} jenis log dipilih`;
+
+    chips.replaceChildren();
+    chips.hidden = selected.length === 0;
+    for (const option of selected) {
+      const chip = document.createElement('span');
+      chip.className = 'rms-logs-type-chip';
+      chip.textContent = option.dataset.typeLabel ?? option.value;
+      chips.appendChild(chip);
+    }
+  }
+
+  function selectBy(predicate) {
+    for (const option of options) option.checked = predicate(option);
+    renderSelection();
+  }
+
+  options.forEach(option => option.addEventListener('change', renderSelection));
+  all?.addEventListener('click', () => selectBy(() => false));
+  events?.addEventListener('click', () => selectBy(option => option.dataset.important === '1'));
+  selectAll?.addEventListener('click', () => selectBy(() => true));
+  done?.addEventListener('click', () => { picker.open = false; });
+  document.addEventListener('click', event => {
+    if (picker.open && !picker.contains(event.target)) picker.open = false;
+  });
+  renderSelection();
+})();

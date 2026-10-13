@@ -33,6 +33,9 @@ final class RobotLogController extends Controller
     private const PAGE_SIZES = [25, 50, 100];
     private const CSV_LIMIT = 50000;
 
+    // Quick preset for user-selected important events (excluding high-frequency telemetry).
+    private const IMPORTANT_EVENTS = ['alarm_event', 'connection', 'health', 'maintenance', 'recommendation'];
+
     // Expressions are hard-coded: never construct SQL identifiers from request input.
     private const SOURCES = [
         'telemetry' => [RobotTelemetrySample::class, 'robot_telemetry_samples', 'sampled_at'],
@@ -125,11 +128,10 @@ final class RobotLogController extends Controller
         ]);
     }
 
+    /** @return array<string, string> Individually selectable PostgreSQL log sources. */
     private function types(): array
     {
         return [
-            'all' => 'Semua jenis log',
-            'events' => 'Event penting (tanpa telemetry berkala)',
             'telemetry' => 'Telemetry (position & torque)',
             'alarm_event' => 'Alarm events',
             'alarm_snapshot' => 'Alarm snapshots (SDK)',
@@ -149,7 +151,11 @@ final class RobotLogController extends Controller
             'robot_ids' => ['sometimes', 'array', 'max:500'],
             'robot_ids.*' => ['required', 'integer', 'distinct', Rule::exists('robots', 'id')],
             'robot_id' => ['nullable', 'integer', Rule::exists('robots', 'id')],
-            'type' => ['nullable', Rule::in(array_keys($this->types()))],
+            // types[] is a multi-select. Empty/absent means all sources.
+            // Legacy ?type=... links continue to work when types[] is absent.
+            'types' => ['sometimes', 'array', 'max:8'],
+            'types.*' => ['required', 'string', 'distinct', Rule::in(array_keys(self::SOURCES))],
+            'type' => ['nullable', 'string', Rule::in(array_merge(['all', 'events'], array_keys(self::SOURCES)))],
             'preset' => ['nullable', Rule::in(['shift_pagi', 'full_day', 'custom'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'date_format:Y-m-d\\TH:i'],
@@ -188,9 +194,24 @@ final class RobotLogController extends Controller
         $selectedIds = array_values(array_unique($selectedIds));
         sort($selectedIds, SORT_NUMERIC);
 
+        // Explicit multi-selection wins over legacy type= links.
+        // No selection means all sources, consistent with the robot filter.
+        if (array_key_exists('types', $v)) {
+            $selectedTypes = $v['types'];
+        } else {
+            $selectedTypes = match ($v['type'] ?? 'all') {
+                'all' => [],
+                'events' => self::IMPORTANT_EVENTS,
+                default => [$v['type']],
+            };
+        }
+
+        // Deterministic order for URLs, selected chips, and CSV links.
+        $selectedTypes = array_values(array_intersect(array_keys(self::SOURCES), $selectedTypes));
+
         return [
             'robot_ids' => $selectedIds,
-            'type' => $v['type'] ?? 'all',
+            'types' => $selectedTypes,
             'preset' => $preset,
             'date' => $day,
             'from' => $fromLocal->format('Y-m-d\\TH:i'),
@@ -206,7 +227,7 @@ final class RobotLogController extends Controller
     {
         return array_filter([
             'robot_ids' => $f['robot_ids'] !== [] ? $f['robot_ids'] : null,
-            'type' => $f['type'],
+            'types' => $f['types'] !== [] ? $f['types'] : null,
             'preset' => $f['preset'],
             'date' => $f['date'],
             'from' => $f['preset'] === 'custom' ? $f['from'] : null,
@@ -217,11 +238,7 @@ final class RobotLogController extends Controller
 
     private function query(array $f): Builder
     {
-        $selected = match ($f['type']) {
-            'all' => array_keys(self::SOURCES),
-            'events' => ['alarm_event', 'connection', 'health', 'maintenance', 'recommendation'],
-            default => [$f['type']],
-        };
+        $selected = $f['types'] === [] ? array_keys(self::SOURCES) : $f['types'];
 
         $combined = null;
         foreach ($selected as $type) {

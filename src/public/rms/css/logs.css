@@ -72,3 +72,31 @@
 .rms-logs-selected-robots[hidden]{display:none}
 .rms-logs-robot-chip{display:inline-block;font-size:10px;color:#247b60;background:#e9f5ec;border:1px solid #c5e2d0;border-radius:5px;padding:3px 7px}
 @media(max-width:650px){.rms-logs-robot-menu{min-width:0}}
+
+
+/* =========================================================
+   Multi-jenis-log picker — same visual pattern as robot picker
+   ========================================================= */
+.rms-logs-type-field{position:relative}
+.rms-logs-type-select{position:relative;width:100%;font-weight:400}
+.rms-logs-type-trigger{height:40px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border:1px solid var(--line,#e4eae6);border-radius:7px;background:#fff;color:#4a6957;font-size:12px;cursor:pointer;list-style:none}
+.rms-logs-type-trigger::-webkit-details-marker{display:none}
+.rms-logs-type-trigger:focus-visible{outline:2px solid #98cdb8;outline-offset:2px}
+.rms-logs-type-trigger #rms-logs-type-summary{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rms-logs-type-caret{font-size:19px;color:#738c7d;transition:transform .15s}
+.rms-logs-type-select[open] .rms-logs-type-caret{transform:rotate(180deg)}
+.rms-logs-type-select[open] .rms-logs-type-trigger{border-color:#94baa3}
+.rms-logs-type-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;min-width:290px;z-index:50;background:#fff;border:1px solid #cbded2;border-radius:10px;padding:10px;box-shadow:0 14px 28px #1b38221e}
+.rms-logs-type-tools{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.rms-logs-type-tool{border:0;background:#edf6f0;color:#267858;border-radius:6px;padding:6px 9px;font-size:10px;cursor:pointer}
+.rms-logs-type-tool:hover{background:#dcefe3}
+.rms-logs-type-options{max-height:260px;overflow-y:auto;display:grid;gap:2px}
+.rms-logs-type-option{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;cursor:pointer;font-size:11px;color:#354f3d}
+.rms-logs-type-option:hover{background:#f0f7f2}
+.rms-logs-type-option input[type="checkbox"]{accent-color:#247b60;width:16px;height:16px;flex:none}
+.rms-logs-type-help{font-size:10px;color:#819385;line-height:1.5;margin:9px 0}
+.rms-logs-type-done{width:100%;font-size:11px}
+.rms-logs-selected-types{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.rms-logs-selected-types[hidden]{display:none}
+.rms-logs-type-chip{display:inline-block;font-size:10px;color:#247b60;background:#e9f5ec;border:1px solid #c5e2d0;border-radius:5px;padding:3px 7px}
+@media(max-width:650px){.rms-logs-type-menu{min-width:0}}
