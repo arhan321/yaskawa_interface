@@ -1,66 +1,137 @@
 <?php
 
-declare(strict_types=1);
 
-/*
- |--------------------------------------------------------------------------
- | RMS Yaskawa - Web Routes
- |--------------------------------------------------------------------------
- | URLs: /rms/...
- | Controller namespace: App\Http\Controllers\Web
- | All dashboard pages require an authenticated Laravel session.
- | Blade templates live in resources/views/rms/... (not yet supplied).
- */
-
-use App\Http\Controllers\Web\AlarmController;
-use App\Http\Controllers\Web\AnalyticsController;
-use App\Http\Controllers\Web\ConnectionController;
-use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\FeatureController;
-use App\Http\Controllers\Web\HardwareController;
-use App\Http\Controllers\Web\MaintenanceController;
-use App\Http\Controllers\Web\NotificationController;
-use App\Http\Controllers\Web\RecommendationController;
-use App\Http\Controllers\Web\RobotController;
 use Illuminate\Support\Facades\Route;
 
-// Replace the default Laravel welcome-page route with the RMS entry point.
+// ============================================================
+// RMS WEB CONTROLLERS
+// ============================================================
+
+use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\RobotController;
+use App\Http\Controllers\Web\AlarmController;
+use App\Http\Controllers\Web\MaintenanceController;
+use App\Http\Controllers\Web\RecommendationController;
+use App\Http\Controllers\Web\AnalyticsController;
+use App\Http\Controllers\Web\ConnectionController;
+use App\Http\Controllers\Web\NotificationController;
+use App\Http\Controllers\Web\HardwareController;
+use App\Http\Controllers\Web\FeatureController;
+
+// ============================================================
+// 1. HOME
+// ============================================================
+
+// Direct redirect to RMS dashboard
 Route::redirect('/', '/rms')->name('home');
 
-Route::middleware(['auth'])
-    ->prefix('rms')
+// ============================================================
+// 2. RMS DASHBOARD - NO AUTHENTICATION
+// ============================================================
+
+Route::prefix('rms')
     ->name('rms.')
     ->group(function (): void {
-        // Overview
-        Route::get('/', [DashboardController::class, 'index'])
-            ->name('overview');
 
-        // Robot monitoring (numeric database ID for implicit model binding)
-        Route::get('/robots', [RobotController::class, 'index'])
-            ->name('robots.index');
-        Route::get('/robots/{robot}', [RobotController::class, 'show'])
-            ->whereNumber('robot')
-            ->name('robots.show');
+        // ====================================================
+        // DASHBOARD OVERVIEW
+        // ====================================================
 
-        // Alarm & maintenance
-        Route::get('/alarms', [AlarmController::class, 'index'])
-            ->name('alarms.index');
-        Route::get('/maintenance', [MaintenanceController::class, 'index'])
-            ->name('maintenance.index');
-        Route::get('/recommendations', [RecommendationController::class, 'index'])
-            ->name('recommendations.index');
+        Route::get('/', [
+            DashboardController::class,
+            'index'
+        ])->name('overview');
 
-        // Metrics & connectivity
-        Route::get('/analytics', [AnalyticsController::class, 'index'])
-            ->name('analytics.index');
-        Route::get('/connections', [ConnectionController::class, 'index'])
-            ->name('connections.index');
+        // ====================================================
+        // ROBOT MONITORING
+        // ====================================================
 
-        // Supporting pages
-        Route::get('/notifications', [NotificationController::class, 'index'])
-            ->name('notifications.index');
-        Route::get('/hardware', [HardwareController::class, 'index'])
-            ->name('hardware.index');
-        Route::get('/features', [FeatureController::class, 'index'])
-            ->name('features.index');
+        Route::get('/robots', [
+            RobotController::class,
+            'index'
+        ])->name('robots.index');
+
+        // ====================================================
+        // ROBOT DETAIL
+        // ====================================================
+
+        Route::get('/robots/{robot}', [
+            RobotController::class,
+            'show'
+        ])
+        ->whereNumber('robot')
+        ->name('robots.show');
+
+        // ====================================================
+        // ALARM MONITORING
+        // ====================================================
+
+        Route::get('/alarms', [
+            AlarmController::class,
+            'index'
+        ])->name('alarms.index');
+
+        // ====================================================
+        // PREVENTIVE MAINTENANCE
+        // ====================================================
+
+        Route::get('/maintenance', [
+            MaintenanceController::class,
+            'index'
+        ])->name('maintenance.index');
+
+        // ====================================================
+        // MAINTENANCE RECOMMENDATION
+        // ====================================================
+
+        Route::get('/recommendations', [
+            RecommendationController::class,
+            'index'
+        ])->name('recommendations.index');
+
+        // ====================================================
+        // ANALYTICS
+        // ====================================================
+
+        Route::get('/analytics', [
+            AnalyticsController::class,
+            'index'
+        ])->name('analytics.index');
+
+        // ====================================================
+        // CONNECTION MONITORING
+        // ====================================================
+
+        Route::get('/connections', [
+            ConnectionController::class,
+            'index'
+        ])->name('connections.index');
+
+        // ====================================================
+        // NOTIFICATION CENTER
+        // ====================================================
+
+        Route::get('/notifications', [
+            NotificationController::class,
+            'index'
+        ])->name('notifications.index');
+
+        // ====================================================
+        // HARDWARE INSIGHTS
+        // ====================================================
+
+        Route::get('/hardware', [
+            HardwareController::class,
+            'index'
+        ])->name('hardware.index');
+
+        // ====================================================
+        // FEATURE STATUS
+        // ====================================================
+
+        Route::get('/features', [
+            FeatureController::class,
+            'index'
+        ])->name('features.index');
+
     });
