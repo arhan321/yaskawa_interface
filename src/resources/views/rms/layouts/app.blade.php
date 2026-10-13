@@ -8,7 +8,11 @@
   <title>{{ $title ?? 'Dashboard' }} — RMS Yaskawa</title>
   <link rel="stylesheet" href="{{ asset('rms/css/prototype-base.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}">
+  <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
   <script src="{{ asset('rms/js/dashboard.js') }}" defer></script>
+  @if(request()->routeIs('rms.logs.*'))
+    <script src="{{ asset('rms/js/logs.js') }}" defer></script>
+  @endif
 </head>
 <body>
 <a href="#main" class="skip-link">Lewati ke konten</a>
@@ -16,6 +20,7 @@
   $navigation = [
     ['route' => 'rms.overview', 'label' => 'Overview', 'symbol' => '▦'],
     ['route' => 'rms.robots.index', 'label' => 'Robot monitor', 'symbol' => '♧'],
+    ['route' => 'rms.logs.index', 'label' => 'Robot logs', 'symbol' => '≡'],
     ['route' => 'rms.alarms.index', 'label' => 'Alarm center', 'symbol' => '♢'],
     ['route' => 'rms.maintenance.index', 'label' => 'Maintenance', 'symbol' => '▤'],
     ['route' => 'rms.recommendations.index', 'label' => 'Recommendation', 'symbol' => '✧'],
@@ -33,7 +38,7 @@
     <nav class="sidebar-scroll">
       <div class="nav-label">WORKSPACE</div>
       @foreach($navigation as $n)
-        @if($loop->index === 6)<div class="nav-label nav-second">SYSTEM</div>@endif
+        @if($loop->index === 7)<div class="nav-label nav-second">SYSTEM</div>@endif
         <a class="nav-item {{ request()->routeIs($n['route']) || ($n['route']==='rms.robots.index' && request()->routeIs('rms.robots.show')) ? 'active' : '' }}" href="{{ route($n['route']) }}">
           <span class="nav-symbol" aria-hidden="true">{{ $n['symbol'] }}</span>{{ $n['label'] }}
         </a>
@@ -49,7 +54,7 @@
       <div class="flex gap"><button class="icon-btn mobile-menu" id="rms-menu-button" aria-label="Buka navigasi" aria-expanded="false" type="button">☰</button><span class="breadcrumb">RMS / <strong>{{ $title ?? 'Monitoring' }}</strong></span></div>
       <div class="top-actions">
         <span class="source-label"><span class="dot"></span>POSTGRESQL DATA</span>
-        <span class="account-name">{{ auth()->user()?->name ?? 'User' }}</span>
+        <span class="account-name">RMS Monitoring</span>
       </div>
     </header>
     <main id="main" class="main" tabindex="-1">
