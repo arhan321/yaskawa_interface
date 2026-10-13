@@ -58,6 +58,7 @@ use App\Http\Controllers\Web\ConnectionController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\HardwareController;
 use App\Http\Controllers\Web\FeatureController;
+use App\Http\Controllers\Web\RmsLiveController;
 
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
@@ -293,6 +294,16 @@ Route::prefix('rms')
         ])
         ->whereNumber('robot')
         ->name('health.show');
+
+
+        // ====================================================
+        // RMS LIVE SNAPSHOT (read-only, same-origin JSON)
+        // All existing routes above are unchanged.
+        // ====================================================
+        Route::get('/live/snapshot', [
+            RmsLiveController::class,
+            'snapshot'
+        ])->middleware('throttle:120,1')->name('live.snapshot');
 
     });
 

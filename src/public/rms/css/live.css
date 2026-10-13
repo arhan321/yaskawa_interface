@@ -1,0 +1,7 @@
+/* Additive RMS live-only indicators; existing UI styles remain unchanged. */
+.rms-live-indicator{display:inline-flex;align-items:center;border:1px solid #c7d8ce;background:#f0faf5;color:#23734b;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.rms-live-indicator::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:7px}
+.rms-live-indicator[data-state="fallback"]{color:#91651d;background:#fff7e6;border-color:#eee0bd}
+.rms-live-indicator[data-state="stale"],.rms-live-indicator[data-state="error"]{color:#ad4b3b;background:#fff1ef;border-color:#f6d5d0}
+.rms-robot-card[hidden]{display:none!important}
+@media(max-width:800px){.rms-live-indicator{font-size:9px;padding:4px 7px}}
