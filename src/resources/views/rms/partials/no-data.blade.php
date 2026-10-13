@@ -1,0 +1,1 @@
+<div class="rms-empty"><span class="rms-empty-icon" aria-hidden="true">◇</span><strong>{{ $title ?? 'Data belum tersedia' }}</strong><p>{{ $message ?? 'Belum ada data yang disimpan pada PostgreSQL untuk bagian ini.' }}</p></div>
