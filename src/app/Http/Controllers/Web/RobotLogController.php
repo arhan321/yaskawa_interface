@@ -31,7 +31,7 @@ final class RobotLogController extends Controller
 {
     private const TZ = 'Asia/Jakarta';
     private const PAGE_SIZES = [25, 50, 100];
-    private const CSV_LIMIT = 50000;
+    private const XLSX_LIMIT = 5000; // 5.000 total rows across categories, cap shown in the report.
 
     // Quick preset for user-selected important events (excluding high-frequency telemetry).
     private const IMPORTANT_EVENTS = ['alarm_event', 'connection', 'health', 'maintenance', 'recommendation'];
@@ -53,8 +53,8 @@ final class RobotLogController extends Controller
     private const DETAIL_COLUMNS = [
         'telemetry' => ['id', 'sequence', 'position_ok', 'position_status_code', 'position_pulses', 'torque_ok', 'torque_status_code', 'torque_unit', 'torque_axes'],
         'operating' => ['id', 'time_type', 'read_ok', 'status_code', 'status_message', 'value_raw', 'value_seconds'],
-        'alarm_snapshot' => ['id', 'read_ok', 'sdk_text', 'active_alarm_count', 'status_code', 'status_message'],
-        'alarm_event' => ['id', 'status', 'alarm_code', 'alarm_name', 'severity', 'subcode', 'source', 'cleared_at', 'details'],
+        'alarm_snapshot' => ['id', 'read_ok', 'sdk_text', 'active_alarm_count', 'parsed_alarms', 'status_code', 'status_message'],
+        'alarm_event' => ['id', 'event_key', 'status', 'alarm_code', 'alarm_name', 'severity', 'subcode', 'source', 'last_seen_at', 'cleared_at', 'details'],
         'connection' => ['id', 'state', 'message', 'ip_address'],
         'health' => ['id', 'health_status', 'summary', 'rule_version', 'assessment_source', 'indicators'],
         'maintenance' => ['id', 'result', 'action_type', 'performed_by', 'findings', 'action_taken', 'started_at', 'completed_at', 'verified_by', 'verified_at'],
@@ -80,52 +80,85 @@ final class RobotLogController extends Controller
         ]);
     }
 
+    /**
+     * Export XLSX untuk teknisi; selalu menggunakan filter UI yang sama.
+     * Sumber log dipilih satu per satu supaya alarm tidak tenggelam
+     * di antara ribuan sampel telemetry.
+     */
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->filters($request);
-        $filename = 'rms-robot-logs-' . CarbonImmutable::now(self::TZ)->format('Ymd-His') . '.csv';
+        if (!class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
+            abort(500, 'PhpSpreadsheet belum tersedia. Jalankan composer require phpoffice/phpspreadsheet.');
+        }
 
-        return response()->streamDownload(function () use ($filters): void {
-            $out = fopen('php://output', 'wb');
-            if ($out === false) {
-                return;
+        $selected = $filters['types'] === [] ? array_keys(self::SOURCES) : $filters['types'];
+        $name = 'RMS_Yaskawa_Log_Detail_' . CarbonImmutable::now(self::TZ)->format('Ymd_His') . '.xlsx';
+
+        return response()->streamDownload(function () use ($filters, $selected): void {
+            $counts = [];
+            foreach ($selected as $type) {
+                $single = $filters;
+                $single['types'] = [$type];
+                $counts[$type] = (int) $this->query($single)->count();
             }
 
-            // UTF-8 BOM for Excel users (including Indonesian text).
-            fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['Waktu WIB', 'Robot', 'Tipe Log', 'Status', 'Ringkasan', 'Detail JSON']);
-
-            $written = 0;
-            $truncated = false;
-            $source = $this->query($filters)->limit(self::CSV_LIMIT + 1)->cursor();
-            foreach ($source->chunk(200) as $batch) {
-                foreach ($this->hydrateRows(collect($batch)) as $entry) {
-                    if ($written >= self::CSV_LIMIT) {
-                        $truncated = true;
-                        break 2;
+            $quotas = $this->exportQuotas($counts, self::XLSX_LIMIT);
+            $entries = [];
+            foreach ($quotas as $type => $allowed) {
+                if ($allowed <= 0) continue;
+                $single = $filters;
+                $single['types'] = [$type];
+                $cursor = $this->query($single)->limit($allowed)->cursor();
+                foreach ($cursor->chunk(200) as $batch) {
+                    foreach ($this->hydrateRows(collect($batch)) as $entry) {
+                        $entries[] = $entry;
                     }
-                    fputcsv($out, [
-                        $this->safeCsv($entry['time_wib']),
-                        $this->safeCsv($entry['robot_code']),
-                        $this->safeCsv($entry['type_label']),
-                        $this->safeCsv($entry['status']),
-                        $this->safeCsv($entry['summary']),
-                        $this->safeCsv((string) json_encode($entry['details'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)),
-                    ]);
-                    ++$written;
                 }
             }
+            // Sort chronologically across sources; timestamps are stored as UTC sort keys.
+            usort($entries, static function (array $a, array $b): int {
+                return strcmp((string) $b['sort_utc'], (string) $a['sort_utc']);
+            });
 
-            if ($truncated) {
-                fputcsv($out, ['DIPOTONG', '', '', '',
-                    'CSV dibatasi 50.000 baris. Persempit tanggal/jam atau pilih robot tertentu untuk memperoleh sisa log.', '']);
-            }
-            fclose($out);
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Cache-Control' => 'no-store, private',
+            (new \App\Services\RmsRobotLogExcelExporter())->write(
+                $entries,
+                $filters,
+                $counts,
+                $selected,
+                $this->types(),
+                self::XLSX_LIMIT
+            );
+        }, $name, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * Limit total rows, but reserve capacity for each selected log type.
+     * Unlike global LIMIT, 48 operating-hour entries + 2 alarm events
+     * will not disappear behind a high-frequency telemetry stream.
+     */
+    private function exportQuotas(array $counts, int $limit): array
+    {
+        $ordered = $counts;
+        asort($ordered, SORT_NUMERIC);
+        $remaining = $limit;
+        $quota = array_fill_keys(array_keys($counts), 0);
+        $totalTypes = count($ordered);
+        $index = 0;
+
+        foreach ($ordered as $type => $count) {
+            $leftTypes = $totalTypes - $index;
+            $fairShare = $leftTypes > 0 ? intdiv($remaining, $leftTypes) : 0;
+            $allocate = min((int) $count, $fairShare);
+            $quota[$type] = $allocate;
+            $remaining -= $allocate;
+            $index++;
+        }
+        return $quota;
     }
 
     /** @return array<string, string> Individually selectable PostgreSQL log sources. */
@@ -293,6 +326,7 @@ final class RobotLogController extends Controller
             $entries[] = [
                 'key' => $row->log_type . '-' . $row->record_id,
                 'record_id' => (int) $row->record_id,
+                'sort_utc' => (string) $row->logged_at_utc,
                 'robot_id' => (int) $row->robot_id,
                 'robot_code' => $robot?->robot_code ?? ('ID ' . $row->robot_id),
                 'robot_name' => $robot?->name ?? 'Robot tidak ditemukan',
@@ -332,19 +366,19 @@ final class RobotLogController extends Controller
                 $r->read_ok ? 'READ OK' : 'READ FAILED',
                 $r->read_ok ? 'ok' : 'warning',
                 $r->time_type . ': ' . ($r->read_ok ? ($r->value_raw ?? '(nilai tidak ada)') : 'pembacaan gagal'),
-                ['raw_value' => $r->value_raw, 'value_seconds' => $r->value_seconds, 'status_code' => $r->status_code, 'message' => $r->status_message],
+                ['time_type' => $r->time_type, 'read_ok' => $r->read_ok, 'raw_value' => $r->value_raw, 'value_seconds' => $r->value_seconds, 'status_code' => $r->status_code, 'message' => $r->status_message],
             ],
             'alarm_snapshot' => [
                 $r->read_ok ? 'READ OK' : 'READ FAILED',
                 $r->read_ok ? 'ok' : 'warning',
                 $r->read_ok ? 'Snapshot active alarm (bukan jaminan tidak ada alarm)' : 'Gagal membaca active alarms',
-                ['sdk_text' => $r->sdk_text, 'active_alarm_count' => $r->active_alarm_count, 'status_code' => $r->status_code, 'message' => $r->status_message],
+                ['sdk_text' => $r->sdk_text, 'parsed_alarms' => $r->parsed_alarms, 'read_ok' => $r->read_ok, 'active_alarm_count' => $r->active_alarm_count, 'status_code' => $r->status_code, 'message' => $r->status_message],
             ],
             'alarm_event' => [
                 strtoupper((string) $r->status),
                 $r->status === 'active' ? 'danger' : 'neutral',
                 ($r->alarm_code ?: 'Alarm') . ' — ' . ($r->alarm_name ?: 'Alarm event'),
-                ['severity' => $r->severity, 'subcode' => $r->subcode, 'source' => $r->source, 'cleared_at' => $r->cleared_at?->toIso8601String(), 'details' => $r->details],
+                ['event_key' => $r->event_key, 'alarm_code' => $r->alarm_code, 'alarm_name' => $r->alarm_name, 'severity' => $r->severity, 'subcode' => $r->subcode, 'source' => $r->source, 'last_seen_at' => $r->last_seen_at?->toIso8601String(), 'cleared_at' => $r->cleared_at?->toIso8601String(), 'details' => $r->details],
             ],
             'connection' => [
                 strtoupper((string) $r->state),

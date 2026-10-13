@@ -28,25 +28,25 @@ class RecordReducerMeasurement extends Command
     public function handle(): int
     {
         $axis = strtoupper((string)$this->argument('axis'));
-        if (!in_array($axis, ['S','L','U','R','B','T'], true)) return $this->fail('Invalid axis.');
+        if (!in_array($axis, ['S','L','U','R','B','T'], true)) return $this->failWithMessage('Invalid axis.');
         $robot = Robot::query()->where('robot_code', $this->argument('robot'))->first();
-        if (!$robot) return $this->fail('Robot does not exist.');
+        if (!$robot) return $this->failWithMessage('Robot does not exist.');
         if (!$this->option('verified') || blank($this->option('source-ref')) || blank($this->option('verified-by'))) {
-            return $this->fail('Use --verified --source-ref --verified-by after validating OEM evidence.');
+            return $this->failWithMessage('Use --verified --source-ref --verified-by after validating OEM evidence.');
         }
         $num = [];
         foreach (['value','remaining-hours','lower','upper'] as $key) {
             $v = $this->option($key);
             if ($v === null) { $num[$key] = null; continue; }
             $parsed = filter_var($v, FILTER_VALIDATE_FLOAT);
-            if ($parsed === false || !is_finite((float)$parsed)) return $this->fail('Invalid numeric --'.$key);
+            if ($parsed === false || !is_finite((float)$parsed)) return $this->failWithMessage('Invalid numeric --'.$key);
             $num[$key] = (float)$parsed;
         }
         if (($num['remaining-hours'] !== null && $num['remaining-hours'] < 0) ||
             ($num['value'] !== null && blank($this->option('unit'))) ||
             ($num['value'] === null && $num['remaining-hours'] === null) ||
             ($num['lower'] !== null && $num['upper'] !== null && $num['lower'] >= $num['upper'])) {
-            return $this->fail('Invalid measurement/unit/lifetime/limits.');
+            return $this->failWithMessage('Invalid measurement/unit/lifetime/limits.');
         }
         RobotReducerMeasurement::query()->create([
             'robot_id'=>$robot->id,'axis'=>$axis,'measured_at'=>now(),
@@ -60,5 +60,10 @@ class RecordReducerMeasurement extends Command
         $this->info('Verified reducer record saved. No life estimation performed.');
         return self::SUCCESS;
     }
-    private function fail(string $message): int { $this->error($message); return self::FAILURE; }
+    private function failWithMessage(string $message): int
+{
+    $this->error($message);
+
+    return self::FAILURE;
+}
 }

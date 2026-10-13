@@ -1,7 +1,7 @@
 @extends('rms.layouts.app')
 
 @section('heading', 'Robot log history')
-@section('subtitle', 'Histori lintas robot dari PostgreSQL — waktu WIB (Asia/Jakarta), filter shift dan ekspor CSV.')
+@section('subtitle', 'Histori lintas robot dari PostgreSQL — waktu WIB (Asia/Jakarta), filter shift dan ekspor Excel.')
 @section('content')
 
 <section class="rms-logs-intro panel" aria-label="Ringkasan rentang log">
@@ -175,7 +175,7 @@
         · {{ count($filters['robot_ids']) === 0 ? 'Seluruh robot' : count($filters['robot_ids']) . ' robot terpilih' }}
       </p>
     </div>
-    <a class="btn rms-logs-export" href="{{ $exportUrl }}">↓ Export CSV</a>
+    <a class="btn rms-logs-export" href="{{ $exportUrl }}">↓ Download Excel (.xlsx)</a>
   </div>
   <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Jenis <strong>Semua</strong> termasuk telemetry 1 detik; klik <strong>Event penting</strong> di filter Jenis log untuk melihat alarm dan maintenance tanpa tenggelam oleh sampel berkala.</div>
 
@@ -213,6 +213,6 @@
       @if($page->nextPageUrl())<a class="btn" href="{{ $page->nextPageUrl() }}">Berikutnya →</a>@endif
     </div>
   </div>
-  <div class="rms-logs-note">Ekspor CSV dibatasi maksimal 50.000 baris per permintaan, diberi penanda DIPOTONG jika melebihi batas. Sempitkan waktu atau pilih robot tertentu untuk mengekspor bagian lain.</div>
+  <div class="rms-logs-note">Ekspor Excel dibatasi maksimal 5.000 baris per permintaan untuk menjaga performa server. Jika data lebih banyak, laporan memberi penanda DIPOTONG. Sempitkan waktu atau pilih robot tertentu untuk mengekspor sisanya.</div>
 </section>
 @endsection
