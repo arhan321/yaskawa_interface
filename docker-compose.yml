@@ -1,3 +1,5 @@
+# RMS YASKAWA — Docker Compose; additive Reverb, preserve existing services.
+# Root .env is for Docker/PostgreSQL only; Laravel .env is src/.env.
 services:
   php_yaskawa:
     build:
@@ -35,6 +37,25 @@ services:
       retries: 15
       start_period: 10s
 
+  # ADDITION ONLY: Laravel Reverb on its own internal Docker port 8080.
+  # 8080 inside reverb container does not conflict with public Nginx :8080.
+  # No host port: browser connects through Nginx /app/ proxy.
+  reverb_yaskawa:
+    image: latest:php_yaskawa
+    container_name: reverb_yaskawa
+    hostname: reverb
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./src:/var/www/html
+    entrypoint: ["php", "artisan", "reverb:start"]
+    command: ["--host=0.0.0.0", "--port=8080"]
+    stop_grace_period: 20s
+    depends_on:
+      php_yaskawa:
+        condition: service_started
+    # DO NOT add ports: Reverb must not be exposed on host directly.
+
   nginx_yaskawa:
     build:
       context: ./nginx
@@ -50,6 +71,8 @@ services:
     depends_on:
       php_yaskawa:
         condition: service_started
+    # Reverb is intentionally NOT a hard dependency of Nginx.
+    # If Reverb stops, old RMS and JSON polling fallback remain available.
 
 volumes:
   postgres_yaskawa_data:

@@ -1,7 +1,7 @@
-
 # ============================================================
-# RMS YASKAWA - PHP 8.5 + POSTGRESQL
+# RMS YASKAWA - PHP 8.5 + POSTGRESQL + SOCKETS FOR REVERB
 # Laravel | PHP-FPM | Docker | WSL Ubuntu
+# The original PHP extensions, cron, Xdebug & entrypoint are kept.
 # ============================================================
 
 FROM php:8.5-fpm-bookworm
@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ============================================================
 # 2. PHP EXTENSIONS
+# Only sockets is new for Reverb; keep everything else.
 # ============================================================
 
 RUN docker-php-ext-configure gd \
@@ -53,7 +54,8 @@ RUN docker-php-ext-configure gd \
         pdo_pgsql \
         pgsql \
         bcmath \
-        gd
+        gd \
+        sockets
 
 # ============================================================
 # 3. OPCACHE
