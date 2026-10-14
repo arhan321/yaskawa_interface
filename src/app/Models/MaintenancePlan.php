@@ -22,6 +22,11 @@ class MaintenancePlan extends Model
         'last_completed_at',
         'is_active',
         'created_by',
+        // Added PM operator fields; existing columns kept intact.
+        'component_axis',
+        'grease_specification',
+        'reference_document',
+        'work_instructions',
     ];
 
     protected function casts(): array

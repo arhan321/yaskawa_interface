@@ -12,6 +12,7 @@ class MaintenanceLog extends Model
     protected $fillable = [
         'robot_id',
         'maintenance_plan_id',
+        'maintenance_recommendation_id', // Added: nullable FK; existing PM log fields preserved
         'action_type',
         'result',
         'performed_by',
@@ -29,6 +30,7 @@ class MaintenanceLog extends Model
         return [
             'robot_id' => 'integer',
             'maintenance_plan_id' => 'integer',
+            'maintenance_recommendation_id' => 'integer',
             'started_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
             'supporting_data' => 'array',
@@ -44,5 +46,10 @@ class MaintenanceLog extends Model
     public function maintenancePlan(): BelongsTo
     {
         return $this->belongsTo(MaintenancePlan::class);
+    }
+
+    public function maintenanceRecommendation(): BelongsTo
+    {
+        return $this->belongsTo(MaintenanceRecommendation::class);
     }
 }

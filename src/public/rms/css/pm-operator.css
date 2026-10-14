@@ -1,0 +1,31 @@
+/* New PM forms only. Does not replace the original RMS styles. */
+.pm-feedback{border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;border:1px solid}
+.pm-feedback-success{background:#eaf7ef;color:#256744;border-color:#c5e5d0}
+.pm-feedback-error{background:#fff3ef;color:#a13f2c;border-color:#f0c9c2}
+.pm-feedback ul{margin:7px 0 0;padding-left:20px}
+.pm-expand{border:1px solid #dce8e1;border-radius:13px;background:#fff;overflow:hidden;color:#243e32}
+.pm-expand>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;font-size:13px;font-weight:700;user-select:none}
+.pm-expand>summary::-webkit-details-marker{display:none}
+.pm-expand>summary:hover{background:#f5faf6}
+.pm-expand[open]>summary{border-bottom:1px solid #e4ebe6}
+.pm-new-plan>summary small{display:block;font-weight:400;color:#758d7f;margin-top:3px}
+.pm-plus{display:grid;place-items:center;flex:0 0 28px;height:28px;background:#e6f4ea;color:#247b60;border-radius:8px;font-size:22px}
+.pm-form{padding:16px;display:grid;gap:13px}
+.pm-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.pm-form .field{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#405d4c;margin:0}
+.pm-form .input{width:100%;min-width:0;box-sizing:border-box}
+.pm-form textarea.input{resize:vertical;min-height:65px;font:inherit}
+.pm-required{color:#ba5146}
+.pm-wide{grid-column:1/-1}
+.pm-hint{font-size:11px;line-height:1.55;color:#71887a;margin:8px 0}
+.pm-operator-card .rms-kv-list{margin-top:10px}
+.pm-tags{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}
+.pm-tags span{font-size:10px;background:#edf5ef;color:#32694d;padding:5px 9px;border-radius:6px}
+.pm-instruction{padding:9px 11px;background:#f3f7f4;border-radius:8px;font-size:12px;margin:8px 0}
+.pm-instruction p{white-space:pre-wrap;margin:6px 0 0;line-height:1.5}
+.pm-card-actions{margin-top:14px;display:grid;gap:8px}
+.pm-card-details{border-radius:9px}
+.pm-card-details>summary{font-size:12px;padding:12px 13px}
+.pm-card-details .pm-form{padding:13px}
+.pm-submit{width:100%;text-align:center;justify-content:center}
+@media(max-width:730px){.pm-form-grid{grid-template-columns:1fr}.pm-wide{grid-column:auto}}

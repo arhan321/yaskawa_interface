@@ -58,7 +58,6 @@ use App\Http\Controllers\Web\ConnectionController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\HardwareController;
 use App\Http\Controllers\Web\FeatureController;
-use App\Http\Controllers\Web\RmsLiveController;
 
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
@@ -189,6 +188,23 @@ Route::prefix('rms')
             'index'
         ])->name('maintenance.index');
 
+        // Operator-friendly preventive maintenance (NO login / NO verification).
+        // CSRF is applied by Laravel web middleware; writes are rate-limited.
+        // Controller additionally disables guest writes outside trusted environments.
+        Route::post('/maintenance/plans', [
+            MaintenanceController::class, 'storePlan'
+        ])->middleware('throttle:20,1')->name('maintenance.store');
+
+        Route::patch('/maintenance/plans/{maintenancePlan}', [
+            MaintenanceController::class, 'updatePlan'
+        ])->whereNumber('maintenancePlan')
+          ->middleware('throttle:20,1')->name('maintenance.update');
+
+        Route::post('/maintenance/plans/{maintenancePlan}/complete', [
+            MaintenanceController::class, 'completeWork'
+        ])->whereNumber('maintenancePlan')
+          ->middleware('throttle:20,1')->name('maintenance.complete');
+
         // ====================================================
         // MAINTENANCE RECOMMENDATION
         // ====================================================
@@ -197,6 +213,30 @@ Route::prefix('rms')
             RecommendationController::class,
             'index'
         ])->name('recommendations.index');
+
+        // ====================================================
+        // MAINTENANCE RECOMMENDATION - OPERATOR ACTIONS
+        // No login / no approval; Laravel CSRF + throttling + config gate.
+        // Existing GET /recommendations and all previous routes remain.
+        // ====================================================
+        Route::post('/recommendations/manual', [
+            RecommendationController::class, 'storeManual'
+        ])->middleware('throttle:20,1')->name('recommendations.manual.store');
+
+        Route::post('/recommendations/{recommendation}/acknowledge', [
+            RecommendationController::class, 'acknowledge'
+        ])->whereNumber('recommendation')
+          ->middleware('throttle:20,1')->name('recommendations.acknowledge');
+
+        Route::post('/recommendations/{recommendation}/action', [
+            RecommendationController::class, 'recordAction'
+        ])->whereNumber('recommendation')
+          ->middleware('throttle:20,1')->name('recommendations.action');
+
+        Route::post('/recommendations/{recommendation}/dismiss', [
+            RecommendationController::class, 'dismiss'
+        ])->whereNumber('recommendation')
+          ->middleware('throttle:20,1')->name('recommendations.dismiss');
 
         // ====================================================
         // DATA ANALYTICS
@@ -295,13 +335,11 @@ Route::prefix('rms')
         ->whereNumber('robot')
         ->name('health.show');
 
-
         // ====================================================
         // RMS LIVE SNAPSHOT (read-only, same-origin JSON)
-        // All existing routes above are unchanged.
         // ====================================================
         Route::get('/live/snapshot', [
-            RmsLiveController::class,
+            \App\Http\Controllers\Web\RmsLiveController::class,
             'snapshot'
         ])->middleware('throttle:120,1')->name('live.snapshot');
 

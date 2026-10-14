@@ -9,7 +9,11 @@
   <link rel="stylesheet" href="{{ asset('rms/css/prototype-base.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
+  <link rel="stylesheet" href="{{ asset('rms/css/live.css') }}">
   <script src="{{ asset('rms/js/dashboard.js') }}" defer></script>
+  @if(config('rms_live.enabled', false))
+    @vite('resources/js/app.js')
+  @endif
   @if(request()->routeIs('rms.logs.*'))
     <script src="{{ asset('rms/js/logs.js') }}" defer></script>
   @endif
@@ -31,7 +35,7 @@
     ['route' => 'rms.features.index', 'label' => 'Status fitur', 'symbol' => '▧'],
   ];
 @endphp
-<div class="rms-app" data-rms-page="{{ Route::currentRouteName() }}">
+<div class="rms-app" data-rms-page="{{ Route::currentRouteName() }}" data-rms-reverb-monitor-enabled="{{ config('rms_live.enabled', false) ? '1' : '0' }}" data-rms-live-enabled="{{ config('rms_live.enabled', false) && request()->routeIs('rms.overview', 'rms.robots.index', 'rms.robots.show', 'rms.robots.cockpit') ? '1' : '0' }}" data-rms-live-endpoint="{{ route('rms.live.snapshot') }}" data-rms-live-key="{{ config('rms_live.enabled', false) ? config('rms_live.public_app_key') : '' }}" data-rms-stale-seconds="{{ config('rms_live.stale_seconds', 30) }}" data-rms-reconcile-seconds="{{ config('rms_live.reconcile_seconds', 20) }}" data-rms-fallback-seconds="{{ config('rms_live.fallback_seconds', 4) }}">
   <aside class="sidebar" id="rms-sidebar" aria-label="Navigasi RMS">
     <a class="brand" href="{{ route('rms.overview') }}"><span class="brandmark">R</span><span><span class="brand-name">RMS<span class="brand-dot">.</span></span><small>YASKAWA ROBOT HEALTH</small></span></a>
     <div class="workspace"><div class="workspace-icon">▤</div><div><strong>Equipment health</strong><p>Yaskawa · Monitoring</p></div></div>
@@ -53,6 +57,9 @@
     <header class="topbar">
       <div class="flex gap"><button class="icon-btn mobile-menu" id="rms-menu-button" aria-label="Buka navigasi" aria-expanded="false" type="button">☰</button><span class="breadcrumb">RMS / <strong>{{ $title ?? 'Monitoring' }}</strong></span></div>
       <div class="top-actions">
+        @unless(config('rms_live.enabled', false))
+          <span class="rms-live-indicator" data-state="fallback" title="Mode Live RMS belum diaktifkan. Status server Reverb belum dimonitor.">LIVE MODE OFF</span>
+        @endunless
         <span class="source-label"><span class="dot"></span>POSTGRESQL DATA</span>
         <span class="account-name">RMS Monitoring</span>
       </div>
