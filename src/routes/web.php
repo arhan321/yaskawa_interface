@@ -50,6 +50,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\RobotController;
 use App\Http\Controllers\Web\RobotLogController;
 use App\Http\Controllers\Web\CockpitController;
+use App\Http\Controllers\Web\CockpitLiveController;
 use App\Http\Controllers\Web\AlarmController;
 use App\Http\Controllers\Web\MaintenanceController;
 use App\Http\Controllers\Web\RecommendationController;
@@ -123,6 +124,16 @@ Route::prefix('rms')
         ])
         ->whereNumber('robot')
         ->name('robots.cockpit');
+
+        // ====================================================
+        // ROBOT COCKPIT LIVE - MERGED FROM rms_cockpit_live.php
+        // Read-only JSON, same-origin, no additional login.
+        // This route is already inside the Laravel "web" middleware group.
+        // ====================================================
+        Route::get('/robots/{robot}/cockpit/live', CockpitLiveController::class)
+            ->whereNumber('robot')
+            ->middleware('throttle:120,1')
+            ->name('robots.cockpit.live');
 
         // ====================================================
         // ROBOT DETAIL

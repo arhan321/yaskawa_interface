@@ -1,120 +1,517 @@
 'use strict';
-/* RMS Cockpit: browser-only visualization of ACTUAL PostgreSQL-sourced data.
-   No synthetic telemetry, no controller commands, no remote resources. */
+/**
+ * RMS Yaskawa Cockpit (full replacement for public/rms/js/cockpit.js).
+ *
+ * - Read-only dashboard. Never communicates with the robot controller.
+ * - Initial history comes from Blade; new history/metrics come from Laravel JSON.
+ * - Auto-updates every 5 seconds, with faster refresh when the existing
+ *   rms-live.js receives a Reverb invalidation event.
+ * - Never fabricates torque, position, operating time, alarm or reducer life.
+ * - Keeps the original Measurement, Variation, SLURBT and reducer controls.
+ */
 (() => {
   const root = document.querySelector('[data-cockpit]');
-  const d = window.__RMS_COCKPIT__;
-  if (!root || !d) return;
-  const axes = ['S','L','U','R','B','T'];
-  const colors = {S:'#2588c8', L:'#ee8842', U:'#4aaf78', R:'#c14d56', B:'#8068ba', T:'#a67d48'};
-  const state = {mode:'measurement', visible:new Set(axes), focus:'S', reducer:'S'};
-  const numeric = x => typeof x === 'number' && Number.isFinite(x);
-  const fmt = (x, digits=2) => numeric(Number(x)) && x !== null && x !== '' ? Number(x).toLocaleString('id-ID',{maximumFractionDigits:digits}) : '—';
-  const escapeHTML = t => String(t??'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const data = window.__RMS_COCKPIT__;
+  if (!root || !data) return;
+
+  const AXES = ['S', 'L', 'U', 'R', 'B', 'T'];
+  const PERIODS = ['1h', '8h', '24h'];
+  const COLORS = {
+    S: '#2588c8', L: '#ee8842', U: '#4aaf78',
+    R: '#c14d56', B: '#8068ba', T: '#a67d48'
+  };
+  const state = {
+    mode: 'measurement',
+    visible: new Set(AXES),
+    focus: 'S',
+    reducer: 'S',
+    period: '8h'
+  };
+
+  const one = (selector, base = document) => base.querySelector(selector);
+  const all = (selector, base = document) => [...base.querySelectorAll(selector)];
+  const numeric = value => typeof value === 'number' && Number.isFinite(value);
+  const parsed = value => value === null || value === undefined || value === '' ||
+    !Number.isFinite(Number(value)) ? null : Number(value);
+  const fmt = (value, decimals = 2) => {
+    const number = parsed(value);
+    return number === null ? '—' : number.toLocaleString('id-ID', {
+      maximumFractionDigits: decimals
+    });
+  };
+  const escapeHTML = text => String(text ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[character]));
+
+  // Existing Cockpit URL: /rms/robots/1/cockpit?period=8h
+  // The extra endpoint is registered by routes/rms_cockpit_live.php.
+  const cockpitUrl = new URL(location.href);
+  state.period = PERIODS.includes(cockpitUrl.searchParams.get('period'))
+    ? cockpitUrl.searchParams.get('period') : '8h';
+  const endpoint = root.dataset.cockpitLiveUrl ||
+    `${location.pathname.replace(/\/$/, '')}/live`;
+
+  // Preserve the existing last-child freshness pill selector used by rms-live.js.
+  const tags = one('.cp-tags', root);
+  let updateStatus = one('#cp-live-update-status', root);
+  if (tags && !updateStatus) {
+    updateStatus = document.createElement('span');
+    updateStatus.id = 'cp-live-update-status';
+    updateStatus.className = 'cp-pill cp-muted';
+    updateStatus.setAttribute('role', 'status');
+    updateStatus.setAttribute('aria-live', 'polite');
+    tags.prepend(updateStatus);
+  }
+  function indicator(text, kind = 'muted') {
+    if (!updateStatus) return;
+    updateStatus.textContent = text;
+    updateStatus.classList.toggle('cp-ok', kind === 'ok');
+    updateStatus.classList.toggle('cp-muted', kind !== 'ok');
+    updateStatus.title = 'Pembacaan berkala dari PostgreSQL; bukan deterministic hardware realtime';
+  }
+
+  // ---------- Canvas charts (original Cockpit visualization, retained) ----------
   function setupCanvas(canvas) {
-    const cssW = Math.max(320, canvas.parentElement.clientWidth);
-    const cssH = window.matchMedia('(max-width:590px)').matches ? 245 : (canvas.id === 'cp-reducer-chart' ? 225 : 300);
+    const cssW = Math.max(320, canvas.parentElement?.clientWidth || 320);
+    const cssH = window.matchMedia('(max-width:590px)').matches ? 245 :
+      (canvas.id === 'cp-reducer-chart' ? 225 : 300);
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(cssW * ratio);
     canvas.height = Math.round(cssH * ratio);
-    canvas.style.width = '100%'; canvas.style.height = cssH + 'px';
+    canvas.style.width = '100%';
+    canvas.style.height = cssH + 'px';
     const ctx = canvas.getContext('2d');
-    ctx.setTransform(ratio,0,0,ratio,0,0);
-    return {ctx,w:cssW,h:cssH};
+    if (!ctx) return null;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    return {ctx, w: cssW, h: cssH};
   }
-  function drawChart(canvas, points, series, limits=[], yLabel='SDK raw') {
-    const {ctx,w,h} = setupCanvas(canvas);
-    ctx.clearRect(0,0,w,h);
-    const pad={left:54,right:18,top:24,bottom:44}, cw=w-pad.left-pad.right, ch=h-pad.top-pad.bottom;
-    const numbers = [];
-    for (const s of series) for (const v of s.values) if (numeric(v)) numbers.push(v);
-    for (const l of limits) numbers.push(l.value);
-    if (!numbers.length) return false;
-    let lo=Math.min(...numbers), hi=Math.max(...numbers);
-    if (lo===hi) { const spread=Math.max(Math.abs(lo)*.15,1); lo-=spread;hi+=spread; }
-    const margin=(hi-lo)*.12;lo-=margin;hi+=margin;
-    const x=i=>pad.left+(points.length===1?cw/2:(i/(points.length-1))*cw);
-    const y=v=>pad.top+(hi-v)/(hi-lo)*ch;
-    ctx.font='10px Segoe UI,Arial,sans-serif';ctx.lineWidth=1;
-    for(let i=0;i<=4;i++){
-      const yy=pad.top+i*ch/4;ctx.strokeStyle='#e5eef2';ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(w-pad.right,yy);ctx.stroke();
-      const val=hi-i*(hi-lo)/4;ctx.fillStyle='#8199a6';ctx.textAlign='right';ctx.fillText(fmt(val,2),pad.left-7,yy+3);
+
+  function drawChart(canvas, points, series, limits = [], yLabel = 'SDK raw') {
+    if (!canvas) return false;
+    const setup = setupCanvas(canvas);
+    if (!setup) return false;
+    const {ctx, w, h} = setup;
+    ctx.clearRect(0, 0, w, h);
+    const pad = {left: 54, right: 18, top: 24, bottom: 44};
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+    const values = [];
+    for (const line of series) {
+      for (const value of line.values) if (numeric(value)) values.push(value);
     }
-    ctx.textAlign='left';ctx.fillStyle='#66899f';ctx.fillText(yLabel,pad.left,pad.top-11);
-    for(let i=0;i<points.length;i+=Math.max(1,Math.ceil(points.length/5))){
-      ctx.fillStyle='#8397a3';ctx.textAlign='center';ctx.fillText(points[i].time,x(i),h-17);
+    for (const limit of limits) if (numeric(limit.value)) values.push(limit.value);
+    if (!values.length || !points.length) return false;
+
+    let lo = Math.min(...values);
+    let hi = Math.max(...values);
+    if (lo === hi) {
+      const spread = Math.max(Math.abs(lo) * .15, 1);
+      lo -= spread;
+      hi += spread;
     }
-    if(points.length>1){ctx.fillText(points[points.length-1].time,x(points.length-1),h-17);}
-    for (const line of limits){
-      if(!numeric(line.value))continue;
-      ctx.save();ctx.strokeStyle=line.color;ctx.setLineDash([5,5]);ctx.lineWidth=1.3;
-      ctx.beginPath();ctx.moveTo(pad.left,y(line.value));ctx.lineTo(w-pad.right,y(line.value));ctx.stroke();ctx.restore();
+    const margin = (hi - lo) * .12;
+    lo -= margin;
+    hi += margin;
+    const x = index => pad.left + (points.length === 1
+      ? cw / 2 : index / (points.length - 1) * cw);
+    const y = value => pad.top + (hi - value) / (hi - lo) * ch;
+
+    ctx.font = '10px Segoe UI,Arial,sans-serif';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const yy = pad.top + i * ch / 4;
+      ctx.strokeStyle = '#e5eef2';
+      ctx.beginPath();
+      ctx.moveTo(pad.left, yy);
+      ctx.lineTo(w - pad.right, yy);
+      ctx.stroke();
+      ctx.fillStyle = '#8199a6';
+      ctx.textAlign = 'right';
+      ctx.fillText(fmt(hi - i * (hi - lo) / 4), pad.left - 7, yy + 3);
     }
-    for(const s of series){
-      ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
-      let started=false;
-      for(let i=0;i<s.values.length;i++){
-        const v=s.values[i];if(!numeric(v)){started=false;continue;}
-        if(!started){ctx.moveTo(x(i),y(v));started=true;}else ctx.lineTo(x(i),y(v));
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#66899f';
+    ctx.fillText(yLabel, pad.left, pad.top - 11);
+    for (let i = 0; i < points.length; i += Math.max(1, Math.ceil(points.length / 5))) {
+      ctx.fillStyle = '#8397a3';
+      ctx.textAlign = 'center';
+      ctx.fillText(points[i].time || '', x(i), h - 17);
+    }
+    if (points.length > 1) {
+      ctx.fillText(points[points.length - 1].time || '', x(points.length - 1), h - 17);
+    }
+
+    for (const limit of limits) {
+      if (!numeric(limit.value)) continue;
+      ctx.save();
+      ctx.strokeStyle = limit.color;
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y(limit.value));
+      ctx.lineTo(w - pad.right, y(limit.value));
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const line of series) {
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < line.values.length; i++) {
+        const value = line.values[i];
+        if (!numeric(value)) { started = false; continue; }
+        if (!started) { ctx.moveTo(x(i), y(value)); started = true; }
+        else ctx.lineTo(x(i), y(value));
       }
       ctx.stroke();
-      const last=[...s.values].reverse().find(numeric);
-      if(numeric(last)){ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(x(s.values.lastIndexOf(last)),y(last),2.5,0,2*Math.PI);ctx.fill();}
+      for (let i = line.values.length - 1; i >= 0; i--) {
+        if (!numeric(line.values[i])) continue;
+        ctx.fillStyle = line.color;
+        ctx.beginPath();
+        ctx.arc(x(i), y(line.values[i]), 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
     }
     return true;
   }
-  function renderTorque(){
-    const canvas=document.getElementById('cp-torque-chart'); if(!canvas)return;
-    const points=Array.isArray(d.series)?d.series:[];
-    const series=axes.filter(a=>state.visible.has(a)).map(a=>{
-      const raw=points.map(p=>p.axes?.[a]);
-      const baseline=raw.find(numeric);
-      return {color:colors[a],values:state.mode==='variation'
-        ?raw.map(v=>numeric(v)&&numeric(baseline)?v-baseline:null):raw};
+
+  function renderTorque() {
+    const canvas = one('#cp-torque-chart');
+    if (!canvas) return;
+    const points = Array.isArray(data.series) ? data.series : [];
+    const series = AXES.filter(axis => state.visible.has(axis)).map(axis => {
+      const raw = points.map(point => parsed(point.axes?.[axis]));
+      const baseline = raw.find(numeric);
+      return {
+        color: COLORS[axis],
+        values: state.mode === 'variation'
+          ? raw.map(value => numeric(value) && numeric(baseline)
+            ? value - baseline : null)
+          : raw
+      };
     });
-    const rules=d.axisStatus?.[state.focus]||{};
-    const limits=[];
-    if (state.mode==='measurement' && numeric(rules.warning) && numeric(rules.critical)) {
-      for (const value of [rules.warning, -rules.warning]) limits.push({value,color:'#e7a64c'});
-      for (const value of [rules.critical,-rules.critical]) limits.push({value,color:'#d64e4e'});
-    }
-    const valid=drawChart(canvas,points,series,limits,state.mode==='variation'?'Δ SDK raw':'SDK raw');
-    document.getElementById('cp-torque-empty').hidden=valid;
-  }
-  function renderReducer(){
-    const axis=state.reducer;
-    const group=d.reducerTrend?.[axis] || {points:[],unit:null};
-    const points=(group.points||[]).map(p=>({time:p.time,value:Number(p.value)})).filter(p=>numeric(p.value));
-    const latest=d.reducerLatest?.[axis]||null;
-    const limits=[];
-    if (latest?.condition_unit===group.unit) {
-      for(const name of ['lower_threshold','upper_threshold']){
-        const v=latest[name];if(v !== null && v !== undefined && numeric(Number(v))) limits.push({value:Number(v),color:'#d96a52'});
+    const rule = data.axisStatus?.[state.focus] || {};
+    const limits = [];
+    if (state.mode === 'measurement' && parsed(rule.warning) !== null &&
+        parsed(rule.critical) !== null) {
+      for (const value of [Number(rule.warning), -Number(rule.warning)]) {
+        limits.push({value, color: '#e7a64c'});
+      }
+      for (const value of [Number(rule.critical), -Number(rule.critical)]) {
+        limits.push({value, color: '#d64e4e'});
       }
     }
-    const canvas=document.getElementById('cp-reducer-chart');
-    const plotted=drawChart(canvas,points,[{color:'#2884b9',values:points.map(p=>p.value)}],limits,group.unit||'Unit belum tersedia');
-    document.getElementById('cp-reducer-empty').hidden=plotted;
-    const meta=document.getElementById('cp-reducer-meta');
-    if(!latest){meta.textContent='Tidak ada data verified untuk axis ini.';return;}
-    const life=latest.remaining_life_hours===null || latest.remaining_life_hours===undefined ? 'Belum tersedia' : fmt(Number(latest.remaining_life_hours))+' jam (OEM)';
-    meta.innerHTML=`<strong>Sumber:</strong> ${escapeHTML(latest.source_type)} · ${escapeHTML(latest.source_reference)}<br>`+
-      `<strong>Pengukuran:</strong> ${escapeHTML(latest.measured_at)} · ${escapeHTML(latest.condition_value??'—')} ${escapeHTML(latest.condition_unit??'')}<br>`+
-      `<strong>Remaining life:</strong> ${escapeHTML(life)}`;
+    const valid = drawChart(canvas, points, series, limits,
+      state.mode === 'variation' ? 'Δ SDK raw' : 'SDK raw');
+    const empty = one('#cp-torque-empty');
+    if (empty) empty.hidden = valid;
   }
-  root.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{
-    state.mode=btn.dataset.mode;
-    root.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b===btn));
+
+  function renderReducer() {
+    const reducer = data.reducerTrend?.[state.reducer] || {points: [], unit: null};
+    const points = (reducer.points || []).filter(point => parsed(point.value) !== null)
+      .map(point => ({time: point.time, value: Number(point.value)}));
+    const latest = data.reducerLatest?.[state.reducer] || null;
+    const limits = [];
+    if (latest?.condition_unit === reducer.unit) {
+      for (const field of ['lower_threshold', 'upper_threshold']) {
+        const value = parsed(latest[field]);
+        if (value !== null) limits.push({value, color: '#d96a52'});
+      }
+    }
+    const valid = drawChart(one('#cp-reducer-chart'), points,
+      [{color: '#2884b9', values: points.map(point => point.value)}],
+      limits, reducer.unit || 'Unit belum tersedia');
+    const empty = one('#cp-reducer-empty');
+    if (empty) empty.hidden = valid;
+    const meta = one('#cp-reducer-meta');
+    if (!meta) return;
+    if (!latest) {
+      meta.textContent = 'Tidak ada data verified untuk axis ini.';
+      return;
+    }
+    const life = parsed(latest.remaining_life_hours) === null
+      ? 'Belum tersedia'
+      : `${fmt(latest.remaining_life_hours)} jam (OEM)`;
+    meta.innerHTML = `<strong>Sumber:</strong> ${escapeHTML(latest.source_type)} · ` +
+      `${escapeHTML(latest.source_reference)}` +
+      `<br><strong>Pengukuran:</strong> ${escapeHTML(latest.measured_at)} · ` +
+      `${escapeHTML(latest.condition_value ?? '—')} ` +
+      `${escapeHTML(latest.condition_unit ?? '')}` +
+      `<br><strong>Remaining life:</strong> ${escapeHTML(life)}`;
+  }
+
+  // ---------- Live DOM synchronization ----------
+  function updateMetrics(payload) {
+    const metrics = all('.cp-metrics > div > strong');
+    if (metrics[0]) metrics[0].textContent = payload.last_sampled_wib || 'Belum tersedia';
+    if (metrics[1]) metrics[1].textContent = parsed(payload.operating_hours) === null
+      ? 'Belum terverifikasi' : `${fmt(payload.operating_hours)} h`;
+    if (metrics[2]) metrics[2].textContent = String(payload.open_threshold_count ?? 0);
+    if (metrics[3]) metrics[3].textContent = String(payload.active_structured_alarm_count ?? 0);
+    // Don't replace the last pill: rms-live.js also updates that same element.
+    const pill = one('.cp-tags .cp-pill:last-child');
+    if (pill) {
+      pill.textContent = payload.fresh ? 'TELEMETRY FRESH' : 'TELEMETRY STALE / UNKNOWN';
+      pill.classList.toggle('cp-ok', Boolean(payload.fresh));
+      pill.classList.toggle('cp-muted', !payload.fresh);
+    }
+  }
+
+  function updateAxisRows(payload) {
+    const rows = all('.cp-axis-list .cp-axis-item');
+    rows.forEach((row, index) => {
+      const axis = AXES[index];
+      const value = payload.axisStatus?.[axis];
+      if (!value) return;
+      const main = one('.cp-axis-measure strong', row);
+      const detail = one('.cp-axis-measure small', row);
+      const badge = one('.cp-state', row);
+      if (main) main.textContent = fmt(value.value, 4);
+      if (detail) detail.textContent = `Torque SDK raw · Pulse ${fmt(value.pulse, 0)}`;
+      if (badge) {
+        const status = ['unavailable', 'not_configured', 'normal', 'warning', 'critical']
+          .includes(value.status) ? value.status : 'unavailable';
+        badge.className = `cp-state cp-${status}`;
+        badge.textContent = status.replaceAll('_', ' ').toUpperCase();
+      }
+    });
+  }
+
+  function updateRules(payload) {
+    const rows = all('.cp-second-row > .cp-panel:first-child .cp-table tbody tr');
+    rows.forEach((row, index) => {
+      const axis = AXES[index];
+      const rule = payload.configuredRules?.[axis];
+      if (!rule) return;
+      const cells = [...row.querySelectorAll('td')];
+      if (cells[1]) cells[1].textContent = rule.approved ? fmt(rule.warning, 3) : '—';
+      if (cells[2]) cells[2].textContent = rule.approved ? fmt(rule.critical, 3) : '—';
+      if (cells[3]) cells[3].textContent = rule.approved
+        ? `${fmt(rule.hysteresis_percent)}%` : '—';
+      if (cells[4]) {
+        const badge = document.createElement('span');
+        badge.className = rule.approved ? 'cp-state cp-normal' : 'cp-state cp-not_configured';
+        badge.textContent = rule.approved ? 'APPROVED' : 'NOT CONFIGURED';
+        cells[4].replaceChildren(badge);
+      }
+    });
+  }
+
+  function updateThresholdEvents(payload) {
+    const table = one('.cp-last-row > .cp-panel:first-child .cp-table tbody');
+    if (!table) return;
+    const events = Array.isArray(payload.thresholdEvents) ? payload.thresholdEvents : [];
+    table.replaceChildren();
+    if (events.length === 0) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.textContent = 'Belum ada pelanggaran threshold yang tercatat. ' +
+        'Ini tidak berarti robot dipastikan sehat.';
+      row.append(cell);
+      table.append(row);
+    } else {
+      for (const event of events) {
+        const row = document.createElement('tr');
+        const fields = [event.time || '—', event.axis || '—', null,
+          event.status || '—', fmt(event.peak_magnitude, 4)];
+        fields.forEach((field, index) => {
+          const cell = document.createElement('td');
+          if (index === 2) {
+            const severity = ['warning', 'critical'].includes(event.severity)
+              ? event.severity : 'unavailable';
+            const badge = document.createElement('span');
+            badge.className = `cp-state cp-${severity}`;
+            badge.textContent = String(event.severity || 'UNKNOWN').toUpperCase();
+            cell.append(badge);
+          } else {
+            cell.textContent = field;
+          }
+          row.append(cell);
+        });
+        table.append(row);
+      }
+    }
+    const subtitle = one('.cp-last-row > .cp-panel:first-child .cp-panel-sub');
+    if (subtitle) subtitle.textContent = `${events.length} record terbaru`;
+  }
+
+  function updateQuality(payload) {
+    const fields = all('.cp-quality > div > span');
+    if (fields[0]) fields[0].textContent = payload.fresh
+      ? 'Sampel segar' : 'Tidak segar atau belum tersedia';
+    if (fields[1]) fields[1].textContent =
+      `${payload.quality?.approved_rules ?? 0} / 6 axis`;
+    if (fields[2]) fields[2].textContent =
+      `${payload.quality?.verified_reducers ?? 0} / 6 axis`;
+    const lastUpdate = one('#rms-last-update');
+    const timestamp = Date.parse(payload.server_time);
+    if (lastUpdate && Number.isFinite(timestamp)) {
+      const formatted = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).format(new Date(timestamp));
+      lastUpdate.textContent = `Data diperiksa: ${formatted} WIB`;
+    }
+  }
+
+  // ---------- Scheduled AJAX; no page reload, no fabricated readings ----------
+  let loading = false;
+  let queueRefresh = false;
+  let lastRequest = 0;
+  let activeController = null;
+  let fetchTimer = null;
+
+  async function refresh() {
+    if (loading || document.hidden || !root.isConnected) return;
+    loading = true;
+    lastRequest = Date.now();
+    const requestedPeriod = state.period;
+    const url = new URL(endpoint, location.origin);
+    url.searchParams.set('period', requestedPeriod);
+    const controller = new AbortController();
+    activeController = controller;
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {'Accept': 'application/json'},
+        credentials: 'same-origin', cache: 'no-store', signal: controller.signal
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (requestedPeriod !== state.period || !root.isConnected) return;
+      if (!Array.isArray(payload.series) || !payload.axisStatus) {
+        throw new Error('Invalid Cockpit JSON payload');
+      }
+      data.series = payload.series;
+      data.axisStatus = payload.axisStatus;
+      data.reducerTrend = payload.reducerTrend || {};
+      data.reducerLatest = payload.reducerLatest || {};
+      updateMetrics(payload);
+      updateAxisRows(payload);
+      updateRules(payload);
+      updateThresholdEvents(payload);
+      updateQuality(payload);
+      renderTorque();
+      renderReducer();
+      indicator(payload.fresh ? 'DATA LIVE · AUTO 5s' : 'DATA STALE · AUTO 5s',
+        payload.fresh ? 'ok' : 'stale');
+    } catch (error) {
+      // Cancelling an old history range is expected when switching 1h / 8h / 24h.
+      if (error.name === 'AbortError' && requestedPeriod !== state.period) return;
+      // A failed API request does not prove that the robot is healthy or live.
+      // Hide instant readings and retain past chart data only as history.
+      if (error.name !== 'AbortError') {
+        console.warn('[RMS Cockpit] JSON live fetch failed:', error);
+        const stalePayload = {
+          fresh: false,
+          axisStatus: Object.fromEntries(AXES.map(axis => [axis, {
+            value: null, pulse: null, status: 'unavailable'
+          }]))
+        };
+        updateAxisRows(stalePayload);
+        const pill = one('.cp-tags .cp-pill:last-child');
+        if (pill) {
+          pill.textContent = 'TELEMETRY STALE / UNKNOWN';
+          pill.classList.remove('cp-ok');
+          pill.classList.add('cp-muted');
+        }
+      }
+      indicator('DATA API GAGAL · MENCOBA LAGI', 'error');
+    } finally {
+      clearTimeout(timeout);
+      if (activeController === controller) activeController = null;
+      loading = false;
+      if (queueRefresh) {
+        queueRefresh = false;
+        setTimeout(() => { if (!document.hidden) void refresh(); }, 0);
+      }
+    }
+  }
+
+  function requestSoon() {
+    if (document.hidden) return;
+    if (loading) { queueRefresh = true; return; }
+    // Throttle bursts produced by multiple ORM events on the same robot.
+    if (Date.now() - lastRequest < 800) return;
+    void refresh();
+  }
+
+  // ---------- Original chart interactions ----------
+  root.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+    state.mode = button.dataset.mode;
+    root.querySelectorAll('[data-mode]').forEach(item =>
+      item.classList.toggle('selected', item === button));
     renderTorque();
   }));
-  root.querySelectorAll('[data-axis]').forEach(btn=>btn.addEventListener('click',()=>{
-    const axis=btn.dataset.axis;
-    if(state.visible.has(axis) && state.visible.size>1)state.visible.delete(axis);
+  root.querySelectorAll('[data-axis]').forEach(button => button.addEventListener('click', () => {
+    const axis = button.dataset.axis;
+    if (!AXES.includes(axis)) return;
+    if (state.visible.has(axis) && state.visible.size > 1) state.visible.delete(axis);
     else state.visible.add(axis);
-    btn.classList.toggle('is-selected',state.visible.has(axis));renderTorque();
+    button.classList.toggle('is-selected', state.visible.has(axis));
+    renderTorque();
   }));
-  document.getElementById('cp-focus-axis')?.addEventListener('change',e=>{state.focus=e.target.value;renderTorque();});
-  document.getElementById('cp-reducer-axis')?.addEventListener('change',e=>{state.reducer=e.target.value;renderReducer();});
-  let resizeId=0;window.addEventListener('resize',()=>{cancelAnimationFrame(resizeId);resizeId=requestAnimationFrame(()=>{renderTorque();renderReducer();});});
-  renderTorque();renderReducer();
+  one('#cp-focus-axis')?.addEventListener('change', event => {
+    state.focus = event.target.value;
+    renderTorque();
+  });
+  one('#cp-reducer-axis')?.addEventListener('change', event => {
+    state.reducer = event.target.value;
+    renderReducer();
+  });
+  let resizeId = 0;
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(resizeId);
+    resizeId = requestAnimationFrame(() => { renderTorque(); renderReducer(); });
+  });
+
+  // Period switching requests new PostgreSQL history WITHOUT a page refresh.
+  all('.cp-periods a', root).forEach(link => link.addEventListener('click', event => {
+    const wanted = new URL(link.href, location.origin).searchParams.get('period');
+    if (!PERIODS.includes(wanted)) return;
+    event.preventDefault();
+    state.period = wanted;
+    all('.cp-periods a', root).forEach(item =>
+      item.classList.toggle('selected', item === link));
+    const newUrl = new URL(location.href);
+    newUrl.searchParams.set('period', wanted);
+    history.replaceState(null, '', newUrl);
+    // Don't wait for a slow request from the previous period to complete.
+    activeController?.abort();
+    if (loading) queueRefresh = true;
+    else void refresh();
+  }));
+
+  // Existing Laravel Reverb bridge emits this after JSON live snapshot refresh.
+  window.addEventListener('rms:cockpit-sample', requestSoon);
+  window.addEventListener('focus', requestSoon);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) requestSoon();
+  });
+  window.addEventListener('popstate', () => {
+    const selected = new URL(location.href).searchParams.get('period');
+    state.period = PERIODS.includes(selected) ? selected : '8h';
+    all('.cp-periods a', root).forEach(link => link.classList.toggle('selected',
+      new URL(link.href, location.origin).searchParams.get('period') === state.period));
+    activeController?.abort();
+    if (loading) queueRefresh = true;
+    else void refresh();
+  });
+
+  indicator('AUTO UPDATE STARTING');
+  renderTorque();
+  renderReducer();
+  void refresh();
+  fetchTimer = setInterval(requestSoon, 5000);
+  window.addEventListener('pagehide', () => {
+    clearInterval(fetchTimer);
+    activeController?.abort();
+  });
 })();
