@@ -101,6 +101,65 @@ class RobotController extends BaseRmsWebController
             ->with('success', 'Robot berhasil didaftarkan setelah IP merespons dari server Laravel. Collector YMConnect tetap wajib melakukan verifikasi controller saat mulai ingest.');
     }
 
+    /**
+     * Permanently remove a robot registry entry and its robot-scoped history.
+     * The UI confirmation is backed by a transaction so foreign-key protected
+     * history cannot leave a half-deleted robot.
+     */
+    public function destroy(Robot $robot): RedirectResponse
+    {
+        $robotId = (int) $robot->getKey();
+        $robotName = $robot->name;
+
+        try {
+            DB::transaction(function () use ($robotId): void {
+                $lockedRobot = Robot::query()->lockForUpdate()->findOrFail($robotId);
+                $controllerId = (int) $lockedRobot->controller_id;
+
+                // Delete dependent records first. The database intentionally
+                // uses restrictOnDelete for RMS history, so this order follows
+                // the foreign-key dependencies.
+                foreach ([
+                    'robot_anomaly_events',
+                    'robot_predictions',
+                    'robot_threshold_events',
+                    'maintenance_logs',
+                    'maintenance_recommendations',
+                    'maintenance_plans',
+                    'robot_health_assessments',
+                    'robot_threshold_rules',
+                    'robot_anomaly_baselines',
+                    'robot_prediction_models',
+                    'robot_reducer_measurements',
+                    'robot_alarm_snapshots',
+                    'robot_alarm_events',
+                    'robot_connection_events',
+                    'robot_operating_time_samples',
+                    'robot_telemetry_samples',
+                ] as $table) {
+                    DB::table($table)->where('robot_id', $robotId)->delete();
+                }
+
+                $lockedRobot->delete();
+
+                // A controller may serve more than one control group. Keep it
+                // when another robot still references it.
+                if (! Robot::query()->where('controller_id', $controllerId)->exists()) {
+                    ControllerModel::query()->whereKey($controllerId)->delete();
+                }
+            });
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors([
+                'robot' => 'Robot tidak dapat dihapus. Tidak ada data yang diubah; periksa log Laravel untuk detailnya.',
+            ]);
+        }
+
+        return redirect()->route('rms.robots.index')
+            ->with('success', "Robot {$robotName} dan seluruh histori terkait berhasil dihapus.");
+    }
+
     public function index(Request $request): View
     {
         $validated = $request->validate([

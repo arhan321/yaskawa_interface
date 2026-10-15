@@ -114,6 +114,11 @@ Route::prefix('rms')
             'index'
         ])->name('robots.index');
 
+        Route::delete('/robots/{robot}', [
+            RobotController::class,
+            'destroy'
+        ])->middleware('throttle:10,1')->whereNumber('robot')->name('robots.destroy');
+
         // ====================================================
         // ROBOT COCKPIT - YASKAWA EQUIPMENT HEALTH
         // ====================================================

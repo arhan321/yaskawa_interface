@@ -73,7 +73,7 @@ final class RobotReachabilityProbe
                 'method' => 'icmp',
                 'checked_at' => $checkedAt,
                 'latency_ms' => $latency,
-            ];
+            ];  
         }
 
         $detail = trim((string) ($stderr !== '' ? $stderr : $stdout));
@@ -83,6 +83,15 @@ final class RobotReachabilityProbe
     /** @return array{ok: bool, status: string, message: string, method: string, checked_at: string, latency_ms: float|null} */
     private function result(bool $ok, string $status, string $message, string $method, string $checkedAt, ?float $latency = null): array
     {
-        return compact('ok', 'status', 'message', 'method', 'checked_at', 'latency_ms');
+        // Use explicit keys because the local variable names are camelCase
+        // while the API payload uses snake_case.
+        return [
+            'ok' => $ok,
+            'status' => $status,
+            'message' => $message,
+            'method' => $method,
+            'checked_at' => $checkedAt,
+            'latency_ms' => $latency,
+        ];
     }
 }
