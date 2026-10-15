@@ -249,10 +249,26 @@
   function updateMetrics(payload) {
     const metrics = all('.cp-metrics > div > strong');
     if (metrics[0]) metrics[0].textContent = payload.last_sampled_wib || 'Belum tersedia';
-    if (metrics[1]) metrics[1].textContent = parsed(payload.operating_hours) === null
-      ? 'Belum terverifikasi' : `${fmt(payload.operating_hours)} h`;
+    if (metrics[1]) {
+      const verified = parsed(payload.operating_hours);
+      const raw = parsed(payload.operating_candidate_hours);
+      metrics[1].textContent = verified !== null ? `${fmt(verified, 2)} h` :
+        raw !== null ? `${fmt(raw, 2)} h (RAW)` : 'Belum tersedia';
+      const small = metrics[1].parentElement?.querySelector('small');
+      if (small) small.textContent = verified !== null ? 'Jam sudah diverifikasi untuk PM' :
+        raw !== null ? 'Hasil parse SDK; BELUM untuk jadwal PM' : 'Perlu pembacaan operating time';
+    }
     if (metrics[2]) metrics[2].textContent = String(payload.open_threshold_count ?? 0);
-    if (metrics[3]) metrics[3].textContent = String(payload.active_structured_alarm_count ?? 0);
+    if (metrics[3]) {
+      metrics[3].textContent = String(payload.active_structured_alarm_count ?? 0);
+      const small = metrics[3].parentElement?.querySelector('small');
+      if (small) {
+        const raw = payload.alarm_raw;
+        small.textContent = raw?.reported_count === null || raw?.reported_count === undefined
+          ? 'Status raw SDK belum terstruktur'
+          : `Raw SDK: ${raw.reported_count} · teridentifikasi: ${raw.identified_count ?? 0}`;
+      }
+    }
     // Don't replace the last pill: rms-live.js also updates that same element.
     const pill = one('.cp-tags .cp-pill:last-child');
     if (pill) {
@@ -349,6 +365,11 @@
       `${payload.quality?.approved_rules ?? 0} / 6 axis`;
     if (fields[2]) fields[2].textContent =
       `${payload.quality?.verified_reducers ?? 0} / 6 axis`;
+    const state = payload.controller_state;
+    if (fields[3]) fields[3].textContent = state
+      ? `Mode ${state.control_mode ?? '?'} · RUN ${state.running === null ? '?' : state.running ? 'ON' : 'OFF'} · SERVO ${state.servo_on === null ? '?' : state.servo_on ? 'ON' : 'OFF'} (SDK raw)`
+      : 'Tidak ada status controller segar';
+    if (fields[4]) fields[4].textContent = 'Job/I-O belum tervalidasi dari SDK';
     const lastUpdate = one('#rms-last-update');
     const timestamp = Date.parse(payload.server_time);
     if (lastUpdate && Number.isFinite(timestamp)) {

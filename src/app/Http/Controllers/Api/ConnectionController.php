@@ -14,37 +14,52 @@ class ConnectionController extends BaseRmsController
 {
     public function index(Request $request, Robot $robot): JsonResponse
     {
-        $filters = $this->queryPeriod($request);
-        $query = $robot->connectionEvents();
-        $this->applyPeriod($query->getQuery(), $filters, 'occurred_at');
-        return response()->json($query->orderByDesc('occurred_at')->paginate($filters['per_page'] ?? 25));
+        $filters=$this->queryPeriod($request);
+        $query=$robot->connectionEvents();
+        $this->applyPeriod($query->getQuery(),$filters,'occurred_at');
+        return response()->json($query->orderByDesc('occurred_at')->paginate($filters['per_page']??25));
     }
 
-    /** Append event only; no robot-motion/servo control. */
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'robot_id' => ['required', 'integer', 'exists:robots,id'],
-            'state' => ['required', 'in:connected,offline,reconnecting,stopped'],
-            'message' => ['nullable', 'string'],
-            'ip_address' => ['nullable', 'ip'],
-            'occurred_at' => ['required', 'date'],
-            'raw_payload' => ['nullable', 'array'],
+        $data=$request->validate([
+            'robot_id'=>['required','integer','exists:robots,id'],
+            'state'=>['required','in:connected,offline,reconnecting,stopped'],
+            'message'=>['nullable','string'],
+            'ip_address'=>['nullable','ip'],
+            'occurred_at'=>['required','date'],
+            'raw_payload'=>['nullable','array'],
         ]);
-        $event = DB::transaction(function () use ($data) {
-            $robot = Robot::query()->with('controller')->findOrFail($data['robot_id']);
-            $event = RobotConnectionEvent::create($data);
-            $controller = $robot->controller;
-            // Avoid backdated replay overriding newer controller state.
-            if ($controller && ($controller->last_seen_at === null
-                || $event->occurred_at->greaterThanOrEqualTo($controller->last_seen_at))) {
+        $registered=Robot::query()->findOrFail($data['robot_id']);
+        if (($data['raw_payload']['simulated']??false) === true &&
+            !str_starts_with($registered->robot_code,'DEMO_')) {
+            return response()->json(['message'=>'Simulated connection cannot use a physical robot ID'],422);
+        }
+        $event=DB::transaction(function() use ($data) {
+            $robot=Robot::query()->with('controller')->findOrFail($data['robot_id']);
+            $controller=$robot->controller;
+            if ($controller) {
+                // Lock first. last_seen_at is last successful contact, NOT a state
+                // event watermark. Those concepts must never be conflated.
+                $controller=\App\Models\RobotController::query()->lockForUpdate()->findOrFail($controller->id);
+            }
+            $event=RobotConnectionEvent::create($data);
+            if($controller){
+                $robotIds=Robot::query()->where('controller_id',$controller->id)->pluck('id');
+                $realEvents=RobotConnectionEvent::query()->whereIn('robot_id',$robotIds)
+                    ->where(function($q){$q->whereNull('raw_payload')
+                        ->orWhereRaw("COALESCE(raw_payload->>'simulated','false') <> 'true'");});
+                $newest=(clone $realEvents)->orderByDesc('occurred_at')->orderByDesc('id')->first();
+                $lastSuccessful=(clone $realEvents)->where('state','connected')
+                    ->orderByDesc('occurred_at')->first();
+                // Replayed older events cannot flip status back to connected.
                 $controller->update([
-                    'connection_status' => $event->state,
-                    ...($event->state === 'connected' ? ['last_seen_at' => $event->occurred_at] : []),
+                    'connection_status'=>$newest?->state??'unknown',
+                    'last_seen_at'=>$lastSuccessful?->occurred_at,
                 ]);
             }
             return $event;
-        });
-        return response()->json(['data' => $event], 201);
+        },3);
+        return response()->json(['data'=>$event],201);
     }
 }

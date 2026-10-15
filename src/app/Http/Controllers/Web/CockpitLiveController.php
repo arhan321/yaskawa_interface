@@ -10,6 +10,8 @@ use App\Models\RobotAlarmEvent;
 use App\Models\RobotReducerMeasurement;
 use App\Models\RobotThresholdEvent;
 use App\Models\RobotThresholdRule;
+use App\Services\Rms\OperatingTimeTextParser;
+use App\Services\Rms\ControllerStateTextReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class CockpitLiveController extends Controller
 {
-    public function __invoke(Request $request, Robot $robot): JsonResponse
+    public function __invoke(Request $request, Robot $robot, OperatingTimeTextParser $timeParser, ControllerStateTextReader $stateReader): JsonResponse
     {
         $validated = $request->validate(['period' => ['sometimes', 'in:1h,8h,24h']]);
         $period = $validated['period'] ?? '8h';
@@ -104,6 +106,10 @@ final class CockpitLiveController extends Controller
             ->where('time_type', 'ServoPowerOnTimeRobot')->orderByDesc('sampled_at')->first();
         $operatingHours = $operating && $operating->read_ok && $operating->value_seconds !== null
             ? round($operating->value_seconds / 3600, 2) : null;
+        $timeCandidate = $operating && $operating->read_ok
+            ? $timeParser->parse($operating->value_raw) : null;
+        $alarmSnapshot = $robot->alarmSnapshots()->orderByDesc('sampled_at')->first();
+        $controllerState = $fresh ? $stateReader->latest($robot) : null;
         $thresholdCount = RobotThresholdEvent::query()->where('robot_id', $robot->id)->where('status', 'open')->count();
         $structuredAlarmCount = RobotAlarmEvent::query()->where('robot_id', $robot->id)->where('status', 'active')->count();
         $thresholdEvents = RobotThresholdEvent::query()->where('robot_id', $robot->id)
@@ -153,6 +159,14 @@ final class CockpitLiveController extends Controller
             'last_sampled_wib' => $latest?->sampled_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s'),
             'fresh' => (bool) $fresh,
             'operating_hours' => $operatingHours,
+            'operating_candidate_hours' => $timeCandidate['hours'] ?? null,
+            'operating_source' => $operatingHours === null ? 'sdk_text_unverified' : 'verified_elapsed_time',
+            'controller_state' => $controllerState,
+            'alarm_raw' => [
+                'reported_count' => $alarmSnapshot?->read_ok ? $alarmSnapshot->active_alarm_count : null,
+                'identified_count' => is_array($alarmSnapshot?->parsed_alarms) ? count($alarmSnapshot->parsed_alarms) : null,
+                'sampled_at' => $alarmSnapshot?->sampled_at?->toIso8601String(),
+            ],
             'open_threshold_count' => $thresholdCount,
             'active_structured_alarm_count' => $structuredAlarmCount,
             'axisStatus' => $axisStatus,
