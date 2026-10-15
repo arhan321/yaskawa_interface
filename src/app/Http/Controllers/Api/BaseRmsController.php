@@ -36,7 +36,7 @@ abstract class BaseRmsController extends Controller
     {
         $robot->loadMissing('controller');
 
-        $telemetry = $robot->telemetrySamples()->orderByDesc('sampled_at')->first();
+        $telemetry = $robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first();
         $operating = $robot->operatingTimeSamples()
             ->where('time_type', 'ServoPowerOnTimeRobot')
             ->orderByDesc('sampled_at')->first();
@@ -47,7 +47,7 @@ abstract class BaseRmsController extends Controller
         // A recent successful SDK sample is proof of data reception, NOT of robot motion.
         $candidates = [
             $robot->controller?->last_seen_at,
-            ($telemetry && ($telemetry->position_ok || $telemetry->torque_ok)) ? $telemetry->sampled_at : null,
+            ($telemetry && ($telemetry->position_ok || $telemetry->torque_ok)) ? ($telemetry->received_at ?? $telemetry->sampled_at) : null,
             ($connection?->state === 'connected') ? $connection->occurred_at : null,
         ];
         $lastPositive = null;
@@ -83,13 +83,15 @@ abstract class BaseRmsController extends Controller
             'link_status' => $linkStatus,
             'last_data_at' => $lastPositive?->toIso8601String(),
             'motion_state' => null, // SDK ReadState() not ingested in current schema.
-            'job_name' => null, // Job monitoring is not ingested yet.
+            'job_name' => $telemetry?->job_name ?: data_get($telemetry?->raw_payload, 'job.name'),
             'io_status' => null, // I/O monitoring is not ingested yet.
             'utilization_percent' => null, // No historical run/idle/stop intervals yet.
             'health_status' => $health?->health_status ?? 'unknown',
             'health_evaluated_at' => $health?->evaluated_at?->toIso8601String(),
             'telemetry' => $telemetry ? [
                 'sampled_at' => $telemetry->sampled_at?->toIso8601String(),
+                'received_at' => $telemetry->received_at?->toIso8601String(),
+                'job_name' => $telemetry->job_name ?: data_get($telemetry->raw_payload, 'job.name'),
                 'position_ok' => $telemetry->position_ok,
                 'position_pulses' => $telemetry->position_ok ? $telemetry->position_pulses : null,
                 'torque_ok' => $telemetry->torque_ok,

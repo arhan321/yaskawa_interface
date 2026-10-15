@@ -94,6 +94,21 @@ Route::prefix('rms')
         // ROBOT MONITORING
         // ====================================================
 
+        Route::get('/robots/create', [
+            RobotController::class,
+            'create'
+        ])->name('robots.create');
+
+        Route::post('/robots/probe', [
+            RobotController::class,
+            'probe'
+        ])->middleware('throttle:20,1')->name('robots.probe');
+
+        Route::post('/robots', [
+            RobotController::class,
+            'store'
+        ])->middleware('throttle:10,1')->name('robots.store');
+
         Route::get('/robots', [
             RobotController::class,
             'index'

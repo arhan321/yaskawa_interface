@@ -22,7 +22,7 @@ class TelemetryController extends BaseRmsController
 
     public function latest(Robot $robot): JsonResponse
     {
-        return response()->json(['data'=>$robot->telemetrySamples()->orderByDesc('sampled_at')->first()]);
+        return response()->json(['data'=>$robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first()]);
     }
 
     public function store(Request $request): JsonResponse
@@ -32,6 +32,7 @@ class TelemetryController extends BaseRmsController
             'collector_session_id'=>['nullable','uuid'],
             'sequence'=>['nullable','integer','min:0'],
             'collector_uptime_seconds'=>['nullable','integer','min:0'],
+            'job_name'=>['nullable','string','max:120'],
             'sampled_at'=>['required','date'],
             'position_ok'=>['required','boolean'],
             'position_status_code'=>['nullable','integer'],
@@ -65,6 +66,7 @@ class TelemetryController extends BaseRmsController
         if(!$data['position_ok']) $data['position_pulses']=null;
         if(!$data['torque_ok']) $data['torque_axes']=null;
         $data['torque_unit']='sdk_raw';
+        $data['job_name'] = $data['job_name'] ?? data_get($data['raw_payload'] ?? null, 'job.name');
         if(!empty($data['collector_session_id']) && array_key_exists('sequence',$data) && $data['sequence']!==null){
             $key=['robot_id'=>$data['robot_id'],
                 'collector_session_id'=>$data['collector_session_id'],

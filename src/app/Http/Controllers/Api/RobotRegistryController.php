@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Robot;
 use App\Models\RobotController as ControllerModel;
+use App\Services\Rms\RobotReachabilityProbe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,29 +19,59 @@ class RobotRegistryController extends BaseRmsController
         return response()->json(['data' => ControllerModel::query()->withCount('robots')->orderBy('controller_code')->get()]);
     }
 
-    public function storeController(Request $request): JsonResponse
+    public function storeController(Request $request, RobotReachabilityProbe $probe): JsonResponse
     {
         $data = $request->validate([
             'controller_code' => ['required', 'string', 'max:80', 'unique:robot_controllers,controller_code'],
             'model' => ['sometimes', 'string', 'max:80'],
-            'ip_address' => ['required', 'ip'],
+            'ip_address' => ['required', 'ip', 'ipv4', 'unique:robot_controllers,ip_address'],
             'firmware_version' => ['nullable', 'string', 'max:80'],
             'location' => ['nullable', 'string', 'max:150'],
             'notes' => ['nullable', 'string'],
         ]);
+        $probeResult = $probe->probe($data['ip_address']);
+        if (! $probeResult['ok']) {
+            return response()->json([
+                'message' => 'Controller tidak disimpan karena IP tidak reachable dari server Laravel.',
+                'probe' => $probeResult,
+            ], 422);
+        }
+        $data += [
+            'network_verified_at' => now(),
+            'network_verification_status' => $probeResult['status'],
+            'network_verification_method' => $probeResult['method'],
+            'network_verification_message' => $probeResult['message'],
+            'network_verification_latency_ms' => $probeResult['latency_ms'],
+        ];
         return response()->json(['data' => ControllerModel::create($data)], 201);
     }
 
-    public function updateController(Request $request, ControllerModel $controller): JsonResponse
+    public function updateController(Request $request, ControllerModel $controller, RobotReachabilityProbe $probe): JsonResponse
     {
         $data = $request->validate([
             'controller_code' => ['sometimes', 'string', 'max:80', Rule::unique('robot_controllers', 'controller_code')->ignore($controller->id)],
             'model' => ['sometimes', 'string', 'max:80'],
-            'ip_address' => ['sometimes', 'ip'],
+            'ip_address' => ['sometimes', 'ip', 'ipv4', Rule::unique('robot_controllers', 'ip_address')->ignore($controller->id)],
             'firmware_version' => ['nullable', 'string', 'max:80'],
             'location' => ['nullable', 'string', 'max:150'],
             'notes' => ['nullable', 'string'],
         ]);
+        if (isset($data['ip_address']) && $data['ip_address'] !== $controller->ip_address) {
+            $probeResult = $probe->probe($data['ip_address']);
+            if (! $probeResult['ok']) {
+                return response()->json([
+                    'message' => 'Controller tidak diperbarui karena IP baru tidak reachable dari server Laravel.',
+                    'probe' => $probeResult,
+                ], 422);
+            }
+            $data += [
+                'network_verified_at' => now(),
+                'network_verification_status' => $probeResult['status'],
+                'network_verification_method' => $probeResult['method'],
+                'network_verification_message' => $probeResult['message'],
+                'network_verification_latency_ms' => $probeResult['latency_ms'],
+            ];
+        }
         $controller->update($data);
         return response()->json(['data' => $controller->refresh()]);
     }

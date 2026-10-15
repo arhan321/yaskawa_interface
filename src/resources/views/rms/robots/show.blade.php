@@ -1,7 +1,7 @@
 @extends('rms.layouts.app')
 @section('heading', $robot->name)
 @section('subtitle', 'Detail equipment health, telemetry 6-axis, operating time, alarm, dan histori koneksi.')
-@section('auto_refresh', '15')
+@section('auto_refresh', 'off')
 @section('content')
 <div class="back" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><a class="btn text" href="{{ route('rms.robots.index') }}">← Kembali ke robot monitor</a>@if(Route::has('rms.logs.index'))<a class="btn" href="{{ route('rms.logs.index', ['robot_id' => $robot->id, 'preset' => 'shift_pagi']) }}">≡ Lihat log shift robot ini</a>@endif<a class="btn primary" href="{{ route('rms.robots.cockpit', $robot) }}">▤ Buka Robot Cockpit</a></div>
 <section class="panel"><div class="between rms-detail-header"><div><span class="eyebrow">{{ $robot->robot_code }} · {{ $robot->model }} · {{ $robot->control_group }}</span><h2>{{ $robot->station_name ?: ($robot->line_name ?: 'Station belum diatur') }}</h2><p class="rms-muted-small">Controller {{ $robot->controller?->model ?? '—' }} · IP {{ $robot->controller?->ip_address ?? '—' }}</p></div><div class="rms-header-status"><span class="badge rms-badge {{ $card['connectivity'] }}">{{ strtoupper($card['connectivity']) }}</span><span class="badge rms-badge {{ $latestHealthAssessment?->health_status ?? 'unknown' }}">HEALTH: {{ strtoupper($latestHealthAssessment?->health_status ?? 'unknown') }}</span></div></div>

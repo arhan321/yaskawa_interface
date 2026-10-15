@@ -25,16 +25,20 @@ final class RmsLiveController extends BaseRmsWebController
         $cards = $this->robotCards($registry);
         $now = now();
         $staleSeconds = config('rms_live.stale_seconds', 30);
-        $rules = isset($values['robot_id']) ? RobotThresholdRule::query()
-            ->where('robot_id', $values['robot_id'])->get()->keyBy('axis') : collect();
-        $robots = $cards->map(function (array $card) use ($now, $staleSeconds, $rules): array {
+        $ruleRows = RobotThresholdRule::query()
+            ->whereIn('robot_id', $registry->pluck('id')->all())
+            ->get()
+            ->groupBy('robot_id');
+        $robots = $cards->map(function (array $card) use ($now, $staleSeconds, $ruleRows): array {
             $robot = $card['robot'];
             $sample = $card['telemetry'];
             $last = $card['health_assessment'];
-            $isFresh = $sample?->sampled_at?->betweenIncluded(
+            $freshnessAt = $sample?->received_at ?? $sample?->sampled_at;
+            $isFresh = $freshnessAt?->betweenIncluded(
                 $now->copy()->subSeconds($staleSeconds), $now->copy()->addSeconds(5)
             ) && ($sample->torque_ok || $sample->position_ok);
             $connected = $card['connectivity'] === 'connected' && $isFresh;
+            $rules = $ruleRows->get($robot->id, collect())->keyBy('axis');
             // Do not show a stored HEALTHY as current when sensor data is stale.
             $healthFresh = $last?->evaluated_at?->betweenIncluded(
                 $now->copy()->subSeconds(max(60, $staleSeconds * 2)), $now->copy()->addSeconds(5)
@@ -69,10 +73,13 @@ final class RmsLiveController extends BaseRmsWebController
                 'connectivity' => $card['connectivity'],
                 'last_sampled_at' => $sample?->sampled_at?->toIso8601String(),
                 'last_sampled_wib' => $sample?->sampled_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s'),
+                'last_received_at' => $sample?->received_at?->toIso8601String(),
+                'last_received_wib' => $sample?->received_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s'),
                 'sample_id' => $sample?->id,
                 'torque_ok' => (bool) ($connected && $sample?->torque_ok),
                 'position_ok' => (bool) ($connected && $sample?->position_ok),
                 'torque_unit' => $sample?->torque_unit,
+                'job_name' => $sample?->job_name ?: data_get($sample?->raw_payload, 'job.name'),
                 'axes' => $axes,
                 'health' => $health,
                 'last_health' => $last?->health_status,
@@ -82,6 +89,7 @@ final class RmsLiveController extends BaseRmsWebController
             ];
         })->values();
 
+        $robotIds = $robots->pluck('id')->all();
         $response = response()->json([
             'server_time' => $now->toIso8601String(),
             'stale_seconds' => $staleSeconds,
@@ -90,8 +98,8 @@ final class RmsLiveController extends BaseRmsWebController
                 'connected' => $robots->where('connectivity', 'connected')->count(),
                 'offline' => $robots->where('connectivity', 'offline')->count(),
                 'stale_or_unknown' => $robots->whereIn('connectivity', ['stale','unknown'])->count(),
-                'identified_active_alarms' => RobotAlarmEvent::query()->where('status', 'active')->count(),
-                'open_recommendations' => MaintenanceRecommendation::query()->where('status', 'open')->count(),
+                'identified_active_alarms' => RobotAlarmEvent::query()->whereIn('robot_id', $robotIds)->where('status', 'active')->count(),
+                'open_recommendations' => MaintenanceRecommendation::query()->whereIn('robot_id', $robotIds)->where('status', 'open')->count(),
             ],
             'robots' => $robots,
         ]);

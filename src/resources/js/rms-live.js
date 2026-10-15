@@ -192,6 +192,15 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
             const data=await response.json();
             serverOffset=Date.parse(data.server_time)-Date.now();
             lastFetch=Date.now();latest=data;
+            const lastUpdate = one('#rms-last-update');
+            if (lastUpdate && data.server_time) {
+                const stamp = new Intl.DateTimeFormat('id-ID', {
+                    timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short',
+                    year: 'numeric', hour: '2-digit', minute: '2-digit',
+                    second: '2-digit', hour12: false,
+                }).format(new Date(Date.parse(data.server_time)));
+                lastUpdate.textContent = `Data diperiksa: ${stamp} WIB`;
+            }
             if(page==='overview') updateOverview(data);
             if(page==='monitor') updateCards(data.robots,'monitor');
             if((page==='detail'||page==='cockpit') && data.robots.length){
@@ -211,7 +220,7 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
         const now=Date.now()+serverOffset;
         let anyStale=false;
         for(const r of latest.robots) {
-            if(r.connectivity==='connected' && (!r.last_sampled_at || now-Date.parse(r.last_sampled_at)>staleSeconds*1000)) {
+            if(r.connectivity==='connected' && (!r.last_received_at || now-Date.parse(r.last_received_at)>staleSeconds*1000)) {
                 r.connectivity='stale';r.health='unknown';r.torque_ok=false;r.position_ok=false;
                 for(const a of AXES)if(r.axes[a]){r.axes[a].torque=null;r.axes[a].pulse=null;r.axes[a].status='unavailable';}
                 anyStale=true;

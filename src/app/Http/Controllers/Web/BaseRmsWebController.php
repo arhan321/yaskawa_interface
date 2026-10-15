@@ -64,7 +64,9 @@ abstract class BaseRmsWebController extends Controller
     protected function robotCards(EloquentCollection $robots): Collection
     {
         $ids = $robots->pluck('id');
-        $telemetry = $this->latestPerRobot(RobotTelemetrySample::class, $ids, 'sampled_at');
+        // Ingestion order is authoritative for live status. A controller clock
+        // can drift, but received_at is written by Laravel at ingest time.
+        $telemetry = $this->latestPerRobot(RobotTelemetrySample::class, $ids, 'received_at');
         $operating = $this->latestPerRobot(RobotOperatingTimeSample::class, $ids, 'sampled_at', [
             'time_type' => 'ServoPowerOnTimeRobot',
         ]);
@@ -90,9 +92,9 @@ abstract class BaseRmsWebController extends Controller
             $connection = $connections->get($robot->id);
             $assessment = $health->get($robot->id);
 
-            $recent = $sample !== null
-                && $sample->sampled_at !== null
-                && $sample->sampled_at->betweenIncluded(
+            $freshnessAt = $sample?->received_at ?? $sample?->sampled_at;
+            $recent = $freshnessAt !== null
+                && $freshnessAt->betweenIncluded(
                     $now->copy()->subSeconds($staleSeconds),
                     $now->copy()->addSeconds(10)
                 );
@@ -101,7 +103,7 @@ abstract class BaseRmsWebController extends Controller
             $freshGoodRead = $recent && ($sample->position_ok || $sample->torque_ok);
             $explicitOffline = $connection !== null
                 && in_array($connection->state, ['offline', 'reconnecting', 'stopped'], true)
-                && ($sample === null || $connection->occurred_at >= $sample->sampled_at);
+                && ($freshnessAt === null || $connection->occurred_at >= $freshnessAt);
 
             $connectivity = $explicitOffline ? 'offline' : (
                 $freshGoodRead ? 'connected' : ($sample !== null ? 'stale' : 'unknown')
@@ -130,6 +132,7 @@ abstract class BaseRmsWebController extends Controller
                 'connectivity' => $connectivity,
                 'telemetry_fresh' => (bool) $freshGoodRead,
                 'last_sampled_at' => $sample?->sampled_at,
+                'last_received_at' => $sample?->received_at,
                 'active_alarm_count' => $alarmCount,
                 'operating_hours' => $operatingHours,
                 'motion_state' => null,

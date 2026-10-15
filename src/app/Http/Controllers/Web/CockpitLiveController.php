@@ -33,9 +33,10 @@ final class CockpitLiveController extends Controller
         $now = now();
         $axes = ['S', 'L', 'U', 'R', 'B', 'T'];
 
-        $latest = $robot->telemetrySamples()->orderByDesc('sampled_at')->orderByDesc('id')->first();
-        $fresh = $latest !== null && $latest->sampled_at !== null
-            && $latest->sampled_at->betweenIncluded($now->copy()->subSeconds(30), $now->copy()->addSeconds(5))
+        $latest = $robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first();
+        $freshnessAt = $latest?->received_at ?? $latest?->sampled_at;
+        $fresh = $latest !== null && $freshnessAt !== null
+            && $freshnessAt->betweenIncluded($now->copy()->subSeconds(30), $now->copy()->addSeconds(5))
             && ($latest->position_ok || $latest->torque_ok);
 
         $rows = DB::table('robot_telemetry_samples')
@@ -161,6 +162,7 @@ final class CockpitLiveController extends Controller
             'operating_hours' => $operatingHours,
             'operating_candidate_hours' => $timeCandidate['hours'] ?? null,
             'operating_source' => $operatingHours === null ? 'sdk_text_unverified' : 'verified_elapsed_time',
+            'job_name' => $latest?->job_name ?: data_get($latest?->raw_payload, 'job.name'),
             'controller_state' => $controllerState,
             'alarm_raw' => [
                 'reported_count' => $alarmSnapshot?->read_ok ? $alarmSnapshot->active_alarm_count : null,

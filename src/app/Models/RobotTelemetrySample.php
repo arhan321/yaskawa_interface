@@ -14,6 +14,7 @@ class RobotTelemetrySample extends Model
         'collector_session_id',
         'sequence',
         'collector_uptime_seconds',
+        'job_name',
         'sampled_at',
         'received_at',
         'position_ok',

@@ -1,7 +1,8 @@
 @extends('rms.layouts.app')
 @section('heading', 'Line overview')
 @section('subtitle', 'Monitoring peralatan robot Yaskawa — status koneksi collector, health, alarm, dan maintenance.')
-@section('auto_refresh', '15')
+{{-- Realtime pages are synchronized by Reverb + JSON reconciliation; no full HTML replacement. --}}
+@section('auto_refresh', 'off')
 @section('content')
 <div class="notice rms-status-notice"><span>◉</span><span><strong>{{ $summary['connected_collectors'] }} dari {{ $summary['total_robots'] }} robot menerima telemetry segar</strong> · {{ $summary['stale_or_unknown'] }} stale/unknown · {{ $summary['offline_collectors'] }} offline</span><span class="right">Sample segar ≠ RUN</span></div>
 <div class="stats">
@@ -10,7 +11,7 @@
  @include('rms.partials.metric',['label'=>'Alarm aktif teridentifikasi','value'=>$summary['identified_active_alarms'],'unit'=>'event','description'=>'Hanya structured alarm'])
  @include('rms.partials.metric',['label'=>'Maintenance recommendation','value'=>$summary['open_recommendations'],'unit'=>'open','description'=>'Rekomendasi tersimpan'])
 </div>
-<section><div class="section-heading"><h2>Robot overview <span class="count">{{ $robots->count() }}</span></h2><a class="btn" href="{{ route('rms.robots.index') }}">Seluruh robot →</a></div>
+<section><div class="section-heading"><h2>Robot overview <span class="count">{{ $robots->count() }}</span></h2><div class="flex gap"><a class="btn" href="{{ route('rms.robots.index') }}">Seluruh robot →</a><a class="btn primary" href="{{ route('rms.robots.create') }}">＋ Tambah robot</a></div></div>
  @forelse($robots->chunk(4) as $group)
  <div class="robot-grid rms-robot-grid">@foreach($group as $item) @include('rms.partials.robot-card',['item'=>$item]) @endforeach</div>
  @empty @include('rms.partials.no-data',['title'=>'Belum ada robot di database','message'=>'Tambahkan master controller dan robot terlebih dahulu sebelum collector mengirim data.']) @endforelse

@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     nano \
     curl \
+    iputils-ping \
     ca-certificates \
     unzip \
     tzdata \

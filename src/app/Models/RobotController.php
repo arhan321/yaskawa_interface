@@ -17,6 +17,11 @@ class RobotController extends Model
         'location',
         'connection_status',
         'last_seen_at',
+        'network_verified_at',
+        'network_verification_status',
+        'network_verification_method',
+        'network_verification_message',
+        'network_verification_latency_ms',
         'notes',
     ];
 
@@ -24,6 +29,8 @@ class RobotController extends Model
     {
         return [
             'last_seen_at' => 'immutable_datetime',
+            'network_verified_at' => 'immutable_datetime',
+            'network_verification_latency_ms' => 'float',
         ];
     }
 

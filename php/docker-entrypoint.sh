@@ -28,6 +28,17 @@ fi
 
 service cron start
 
+# The Laravel source is bind-mounted at runtime, so the image build cannot
+# create Vite's manifest for the mounted source tree. Build it once on startup
+# when live RMS assets are not present; this prevents a clean clone from
+# failing with "Vite manifest not found".
+if [ -f /var/www/html/package.json ] && [ ! -f /var/www/html/public/build/manifest.json ]; then
+  echo "[RMS] Vite build missing; installing frontend dependencies and building assets."
+  npm install --ignore-scripts --prefix /var/www/html \
+    && npm run build --prefix /var/www/html \
+    || echo "[RMS] Vite build failed; server-rendered pages remain available."
+fi
+
 if [ "true" == "$XDEBUG" ] && [ ! -f /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini ]; then
   sed -i '/PHP_IDE_CONFIG/d' /etc/cron.d/laravel-scheduler
   if [ ! -z "${PHP_IDE_CONFIG}" ]; then

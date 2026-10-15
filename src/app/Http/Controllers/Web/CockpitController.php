@@ -26,9 +26,10 @@ class CockpitController extends Controller
         $bucketExpr = "date_bin(INTERVAL '{$bucket} seconds', sampled_at, TIMESTAMPTZ '2000-01-01 00:00:00+00')";
 
         $robot->load('controller');
-        $latest = $robot->telemetrySamples()->orderByDesc('sampled_at')->orderByDesc('id')->first();
-        $fresh = $latest && $latest->sampled_at &&
-            $latest->sampled_at->betweenIncluded(now()->subSeconds(30), now()->addSeconds(5)) &&
+        $latest = $robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first();
+        $freshnessAt = $latest?->received_at ?? $latest?->sampled_at;
+        $fresh = $latest && $freshnessAt &&
+            $freshnessAt->betweenIncluded(now()->subSeconds(30), now()->addSeconds(5)) &&
             ($latest->torque_ok || $latest->position_ok);
 
         // PostgreSQL date_bin + DISTINCT ON bounds rendering and preserves actual time range.
