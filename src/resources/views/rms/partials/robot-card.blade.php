@@ -4,7 +4,7 @@
   $link = route('rms.robots.show', $r);
   $connectivity = $item['connectivity'];
   $health = $item['health_assessment']?->health_status ?? 'unknown';
-  $deleteMessage = "Hapus robot {$r->name} ({$r->robot_code})? Semua telemetry, alarm, operating time, histori koneksi, maintenance, threshold, anomaly, dan prediction robot ini akan dihapus permanen. Pastikan collector C++ robot ini sudah dihentikan.";
+  $deleteMessage = "Hapus robot {$r->name} ({$r->robot_code})? Semua telemetry, alarm, operating time, histori koneksi, maintenance, threshold, anomaly, dan prediction robot ini akan dihapus permanen. Pastikan pengiriman data robot ini sudah dihentikan.";
 @endphp
 <div class="rms-robot-card-shell">
   <a class="robot-card rms-robot-card {{ $connectivity }}" href="{{ $link }}">

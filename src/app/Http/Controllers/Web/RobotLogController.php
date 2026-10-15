@@ -167,7 +167,7 @@ final class RobotLogController extends Controller
         return [
             'telemetry' => 'Telemetry (position & torque)',
             'alarm_event' => 'Alarm events',
-            'alarm_snapshot' => 'Alarm snapshots (SDK)',
+            'alarm_snapshot' => 'Alarm readings',
             'connection' => 'Connection events',
             'operating' => 'Operating time',
             'health' => 'Equipment health',
@@ -350,7 +350,7 @@ final class RobotLogController extends Controller
             'telemetry' => [
                 $r->position_ok && $r->torque_ok ? 'OK' : (($r->position_ok || $r->torque_ok) ? 'PARTIAL' : 'READ FAILED'),
                 $r->position_ok && $r->torque_ok ? 'ok' : (($r->position_ok || $r->torque_ok) ? 'warning' : 'danger'),
-                'Pembacaan position PULSE & motor torque (SDK raw)',
+                'Pembacaan Position Pulse dan Motor Torque',
                 [
                     'sequence' => $r->sequence,
                     'position_ok' => $r->position_ok,

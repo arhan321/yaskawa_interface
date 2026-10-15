@@ -12,7 +12,7 @@
   <div class="hi-stat"><span>Open Anomalies</span><strong>{{ $openAnomalies }}</strong><small>Butuh review teknisi</small></div>
   <div class="hi-stat"><span>Experimental Models</span><strong>{{ $verifiedModels }}</strong><small>Bukan model OEM</small></div>
 </div>
-<div class="hi-section-title"><h2>Fleet health overview <span>{{ $total }} robots</span></h2><p>Klik robot untuk membuka detail Cockpit Intelligence dan grafik baseline vs actual.</p></div>
+<div class="hi-section-title"><h2>Fleet health overview <span>{{ $total }} robots</span></h2><p>Klik robot untuk membuka detail kondisi dan grafik Reference vs Actual.</p></div>
 <div class="hi-robot-grid">
 @forelse($rows as $row)
  @php($s=$row['state'])
@@ -31,7 +31,7 @@
   <div class="hi-robot-kpi"><span>Prediksi inspeksi</span><strong>{{ $row['prediction']?->status==='projected' ? number_format($row['prediction']->remaining_calendar_days,1,',','.').' hari*':'—' }}</strong></div>
   <div class="hi-open">Lihat detail robot <span>→</span></div>
  </a>
-@empty <div class="hi-empty">Belum ada robot pada registry. Data akan muncul setelah robot didaftarkan dan collector melakukan ingest.</div> @endforelse
+@empty <div class="hi-empty">Belum ada robot terdaftar. Data akan muncul setelah robot didaftarkan dan mulai mengirim monitoring data.</div> @endforelse
 </div>
 <div class="hi-disclaimer">* Proyeksi adalah estimasi waktu kalender menuju batas inspeksi berdasarkan trend terverifikasi, bukan prediksi tanggal pasti kerusakan, bukan OEM speed reducer RUL, dan tidak boleh dijadikan perintah otomatis mengoperasikan/stop robot. UNKNOWN tidak berarti sehat.</div>
 @endsection

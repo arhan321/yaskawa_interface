@@ -29,7 +29,7 @@
   rows.forEach((p,i)=>i?context.lineTo(xp(i),yp(p.y)):context.moveTo(xp(i),yp(p.y)));context.stroke();
   context.fillStyle='#b4cce1';context.font='12px sans-serif';context.fillText(rows[0].x,L,H-16);
   if(rows.length>1){let txt=rows[rows.length-1].x;context.fillText(txt,W-R-context.measureText(txt).width,H-16);}
-  caption.textContent=baseline?`Job ${job==='__unspecified__'?'UNKNOWN':job} · median ${baseline.median.toFixed(3)} · MAD ${baseline.mad.toFixed(3)}`:(job===null?'Mixed jobs; baseline hidden':'Baseline unavailable for this job/axis');
+  caption.textContent=baseline?`Job ${job==='__unspecified__'?'UNKNOWN':job} · reference ${baseline.median.toFixed(3)} · comparison range available`:(job===null?'Mixed jobs; reference hidden':'Reference unavailable for this job/axis');
  }
  picker.addEventListener('change',render);render();
 })();

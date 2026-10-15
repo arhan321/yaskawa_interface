@@ -114,7 +114,7 @@ final class RobotHealthEngine
             'servo_operating_hours'=>$hours,'maintenance'=>$pm,'due_maintenance'=>$due,
             'last_telemetry_at'=>$sample?->sampled_at?->toIso8601String(),
             'last_alarm_at'=>$snapshot?->sampled_at?->toIso8601String(),
-            'source'=>'YMConnect collector + approved RMS rules; NOT OEM health estimate',
+            'source'=>'Controller monitoring data + approved RMS rules; not an OEM health estimate',
         ];
         $fingerprint=hash('sha256',json_encode([$status,$reason,$indicators],JSON_THROW_ON_ERROR));
         $indicators['fingerprint']=$fingerprint;

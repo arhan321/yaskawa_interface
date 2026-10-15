@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 return [
-    // Opt-in: existing 15-second server-rendered dashboard stays untouched until enabled.
-    'enabled' => (bool) env('RMS_LIVE_ENABLED', false),
+    // Live is the normal RMS mode. Set RMS_LIVE_ENABLED=false only for diagnostics.
+    'enabled' => (bool) env('RMS_LIVE_ENABLED', true),
     'public_app_key' => env('REVERB_APP_KEY', ''),
     'stale_seconds' => max(5, (int) env('RMS_LIVE_STALE_SECONDS', 30)),
     // Browser reconciliation is retained even with WebSocket in case of lost notifications.

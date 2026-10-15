@@ -25,7 +25,7 @@ final class RobotReachabilityProbe
         }
 
         if (! config('rms.robot_probe.enabled', true)) {
-            return $this->result(false, 'disabled', 'Pemeriksaan IP dinonaktifkan oleh konfigurasi server.', 'configuration', $checkedAt);
+            return $this->result(false, 'disabled', 'Pemeriksaan IP sedang dinonaktifkan. Hubungi administrator RMS.', 'configuration', $checkedAt);
         }
 
         $binary = (string) config('rms.robot_probe.ping_binary', '');
@@ -39,7 +39,7 @@ final class RobotReachabilityProbe
         }
 
         if ($binary === '') {
-            return $this->result(false, 'unavailable', 'Perintah ping tidak tersedia di container Laravel. Pasang iputils-ping terlebih dahulu.', 'icmp', $checkedAt);
+            return $this->result(false, 'unavailable', 'Pemeriksaan IP belum tersedia pada komputer monitoring. Hubungi administrator RMS.', 'icmp', $checkedAt);
         }
 
         $started = microtime(true);
@@ -54,7 +54,7 @@ final class RobotReachabilityProbe
         );
 
         if (! is_resource($process)) {
-            return $this->result(false, 'unavailable', 'Laravel tidak dapat menjalankan pemeriksaan jaringan.', 'icmp', $checkedAt);
+            return $this->result(false, 'unavailable', 'Komputer monitoring tidak dapat menjalankan pemeriksaan jaringan. Hubungi administrator RMS.', 'icmp', $checkedAt);
         }
 
         $stdout = stream_get_contents($pipes[1]);
@@ -65,19 +65,17 @@ final class RobotReachabilityProbe
         $latency = round((microtime(true) - $started) * 1000, 1);
 
         if ($exitCode === 0) {
-            $ports = implode(', ', config('rms.robot_probe.udp_ports', [10040, 10041]));
             return [
                 'ok' => true,
                 'status' => 'reachable',
-                'message' => "Perangkat pada {$ipAddress} merespons ping ({$latency} ms). Port YMConnect yang dipakai collector: UDP {$ports}.",
+                'message' => "IP {$ipAddress} dapat dijangkau dari komputer monitoring ({$latency} ms). Identitas controller Yaskawa akan dikonfirmasi saat data controller pertama diterima.",
                 'method' => 'icmp',
                 'checked_at' => $checkedAt,
                 'latency_ms' => $latency,
-            ];  
+            ];
         }
 
-        $detail = trim((string) ($stderr !== '' ? $stderr : $stdout));
-        return $this->result(false, 'unreachable', "IP {$ipAddress} tidak merespons dari server Laravel. {$detail}", 'icmp', $checkedAt, $latency);
+        return $this->result(false, 'unreachable', "IP {$ipAddress} tidak dapat dijangkau dari komputer monitoring. Periksa alamat IP, daya controller, kabel, dan jaringan.", 'icmp', $checkedAt, $latency);
     }
 
     /** @return array{ok: bool, status: string, message: string, method: string, checked_at: string, latency_ms: float|null} */

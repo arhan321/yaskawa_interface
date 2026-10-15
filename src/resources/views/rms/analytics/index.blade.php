@@ -1,6 +1,6 @@
 @extends('rms.layouts.app')
 @section('heading', 'Data quality & analytics')
-@section('subtitle', 'Kualitas pembacaan telemetry dari PostgreSQL — bukan perhitungan utilization mesin.')
+@section('subtitle', 'Telemetry reading quality dan trend monitoring — bukan perhitungan machine utilization.')
 @section('content')
 <div class="toolbar"><form method="GET" class="rms-filter-form"><label class="field">Periode <select name="period" class="input"><option value="24h" @selected($period === '24h')>24 jam</option><option value="7d" @selected($period === '7d')>7 hari</option></select></label><button type="submit" class="btn primary">Terapkan</button></form><span class="rms-muted-small">Sejak {{ $since->timezone('Asia/Jakarta')->format('d M Y H:i') }} WIB</span></div>
 <div class="stats rms-three-stats">

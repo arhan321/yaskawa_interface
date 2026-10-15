@@ -204,7 +204,7 @@
   add(head, heading, close);
   const body = make('div', 'rms-log-modal-scroll');
   const footer = make('div', 'rms-log-modal-footer');
-  const footerNote = make('span', '', 'Read-only · Sumber data PostgreSQL');
+  const footerNote = make('span', '', 'Read-only · Historical monitoring data');
   const done = make('button', 'rms-log-modal-done', 'Tutup');
   done.type = 'button';
   add(footer, footerNote, done);
@@ -213,7 +213,6 @@
   document.body.appendChild(modal);
 
   let lastButton = null;
-  let jsonText = '';
   const closeDialog = () => { if (modal.open) modal.close(); };
   close.addEventListener('click', closeDialog);
   done.addEventListener('click', closeDialog);
@@ -228,7 +227,7 @@
   function category(label) {
     const lower = label.toLowerCase();
     if (lower.includes('telemetry')) return 'telemetry';
-    if (lower.includes('alarm snapshots')) return 'alarm_snapshot';
+    if (lower.includes('alarm reading')) return 'alarm_snapshot';
     if (lower.includes('alarm events')) return 'alarm_event';
     if (lower.includes('connection')) return 'connection';
     if (lower.includes('operating')) return 'operating';
@@ -264,12 +263,12 @@
     place.appendChild(make('div', 'rms-log-paragraph', value));
   }
   function axisTable(data) {
-    const place = section('Pembacaan enam axis · SLURBT');
+    const place = section('Pembacaan enam axis · S / L / U / R / B / T');
     const wrap = make('div', 'rms-log-axis-wrap');
     const tableEl = make('table', 'rms-log-axis');
     const header = make('thead');
     const tr = make('tr');
-    for (const v of ['Axis', 'Position (pulse)', 'Torque (SDK raw)']) tr.appendChild(make('th', '', v));
+    for (const v of ['Axis', 'Position (pulse)', 'Motor Torque']) tr.appendChild(make('th', '', v));
     header.appendChild(tr);
     const tbody = make('tbody');
     const pos = data.position_pulses && typeof data.position_pulses === 'object' ? data.position_pulses : {};
@@ -288,16 +287,16 @@
   }
   function renderTelemetry(data) {
     grid('Hasil pembacaan sensor', [
-      ['Position / Pulse', bool(data.position_ok), 'Status pembacaan dari SDK, bukan status gerak robot'],
-      ['Motor Torque', bool(data.torque_ok), `Satuan: ${str(data.torque_unit)} — belum dinyatakan Nm atau %`],
-      ['Urutan sampel', str(data.sequence), 'Nomor urut paket collector'],
-      ['Sumbu robot', '6 axis SLURBT', 'Control group dapat dilihat pada Robot Detail'],
+      ['Position / Pulse', bool(data.position_ok), 'Status pembacaan sensor, bukan status gerak robot'],
+      ['Motor Torque', bool(data.torque_ok), 'Controller monitor value — unit belum dinyatakan sebagai Nm atau %'],
+      ['Urutan pembacaan', str(data.sequence), 'Nomor urut data monitoring'],
+      ['Sumbu robot', '6 axis · S / L / U / R / B / T', 'Control group dapat dilihat pada Robot Detail'],
     ]);
     axisTable(data);
     if (data.torque_ok === true && data.torque_axes && axisNames.every(ax => typeof data.torque_axes[ax] === 'number' && data.torque_axes[ax] === 0)) {
       note('Seluruh torque tercatat 0 dalam sampel ini. Hal ini tidak otomatis berarti robot sehat atau sensor rusak; periksa kondisi servo dan gerakan robot saat pengambilan data.');
     } else if (data.torque_ok === true) {
-      note('Nilai torque merupakan data SDK mentah. Jangan dibandingkan langsung dengan batas % atau Nm tanpa verifikasi unit.');
+      note('Motor Torque belum dinyatakan sebagai % atau Nm. Cocokkan nilainya dengan pendant atau referensi yang disahkan sebelum menetapkan threshold.');
     }
     if (data.position_ok !== true || data.torque_ok !== true) {
       note('Ada pembacaan yang gagal atau belum tersedia. Nilai hilang ditampilkan sebagai “Tidak tersedia”, bukan nol.');
@@ -316,30 +315,30 @@
     grid('Informasi jam operasi', [
       ['Jenis waktu', str(data.time_type)],
       ['Status pembacaan', bool(data.read_ok)],
-      ['Operating hours terverifikasi', verified ? `${number(data.value_seconds / 3600)} jam` : 'Belum terverifikasi', 'Hanya nilai value_seconds yang sudah disahkan'],
-      ['Status kode SDK', str(data.status_code)],
+      ['Operating hours terverifikasi', verified ? `${number(data.value_seconds / 3600)} jam` : 'Belum terverifikasi', 'Hanya nilai jam yang sudah diperiksa yang ditampilkan'],
+      ['Controller Status Code', str(data.status_code)],
     ]);
     const candidate = parseElapsed(data.raw_value);
     if (candidate) {
-      grid('Kandidat durasi dari teks SDK', [['Elapsed Time (RAW)', candidate, 'Hanya interpretasi string; bukan angka PM terverifikasi']]);
+      grid('Operating Time yang terbaca', [['Elapsed Time', candidate, 'Belum merupakan angka PM terverifikasi']]);
     }
     if (data.raw_value) paragraph('Keterangan asli dari controller', data.raw_value);
     if (data.message) note(data.message);
-    if (!verified) note('Jam operasi belum diverifikasi terhadap SDK dan pendant Yaskawa. Jangan gunakan angka RAW untuk menjadwalkan penggantian komponen secara otomatis.');
+    if (!verified) note('Operating Time belum diverifikasi terhadap pendant Yaskawa. Jangan gunakan angka ini untuk menjadwalkan penggantian komponen secara otomatis.');
   }
   function renderAlarmSnapshot(data) {
     grid('Status pembacaan alarm', [
-      ['Hasil SDK', bool(data.read_ok)],
+      ['Read Status', bool(data.read_ok)],
       ['Jumlah alarm dilaporkan', data.active_alarm_count === null || data.active_alarm_count === undefined ? 'Belum terstruktur' : number(data.active_alarm_count, 0)],
       ['Status code', str(data.status_code)],
-      ['Parser event', Array.isArray(data.parsed_alarms) ? `${data.parsed_alarms.length} alarm teridentifikasi` : 'Belum tersedia'],
+      ['Identified Alarm Events', Array.isArray(data.parsed_alarms) ? `${data.parsed_alarms.length} alarm teridentifikasi` : 'Belum tersedia'],
     ]);
     if (data.sdk_text) {
       paragraph('Informasi alarm dari controller', data.sdk_text);
       if (/^No active alarms\.?\s*$/i.test(data.sdk_text.trim())) {
-        note('SDK melaporkan tidak ada alarm aktif pada snapshot ini. Informasi historis, baru, atau status saat ini perlu dilihat dari sampel lain.', true);
+        note('Controller melaporkan tidak ada alarm aktif pada pembacaan ini. Alarm History dan pembacaan terbaru tetap perlu diperiksa.', true);
       } else if (/\d+\s+alarms?\s+active/i.test(data.sdk_text)) {
-        note('Jumlah alarm yang dilaporkan SDK belum tentu sama dengan rincian yang berhasil dibaca. Hanya alarm dengan identitas lengkap yang boleh menjadi event.');
+        note('Jumlah alarm yang dilaporkan controller belum tentu sama dengan rincian yang berhasil diidentifikasi. Hanya alarm dengan identitas lengkap yang menjadi Alarm Event.');
       }
     }
     if (data.message) note(data.message);
@@ -354,21 +353,21 @@
       ['Waktu terakhir terlihat', str(data.last_seen_at)],
       ['Waktu clear', str(data.cleared_at)],
     ]);
-    if (data.source) note(`Sumber alarm: ${data.source}. Status event ditentukan oleh log yang tersimpan; bukan pemeriksaan langsung robot saat ini.`);
-    if (data.details && typeof data.details === 'object') paragraph('Keterangan teknis tambahan', JSON.stringify(data.details, null, 2));
+    if (data.source) note('Status Alarm Event mengikuti riwayat monitoring yang tersimpan; bukan pemeriksaan langsung robot saat ini.');
+    if (data.details && typeof data.details === 'object') note('Informasi tambahan untuk pemeriksaan lanjutan sudah tersimpan pada RMS.');
   }
   function renderConnection(data) {
     const value = String(data.state ?? '').toLowerCase();
     grid('Informasi koneksi', [
-      ['Status collector', value === 'connected' ? 'Terhubung' : value === 'offline' ? 'Terputus' : value === 'reconnecting' ? 'Menghubungkan ulang' : value === 'stopped' ? 'Dihentikan' : str(data.state)],
+      ['Data Connection', value === 'connected' ? 'Terhubung' : value === 'offline' ? 'Terputus' : value === 'reconnecting' ? 'Menghubungkan ulang' : value === 'stopped' ? 'Dihentikan' : str(data.state)],
       ['IP controller', str(data.ip_address)],
     ]);
-    note('Koneksi collector berarti jalur komunikasi software terpantau. Ini berbeda dari RUN/STOP, SERVO ON/OFF, dan kondisi keselamatan fisik robot.');
+    note('Data Connection menunjukkan jalur monitoring tersedia. Status ini berbeda dari RUN/STOP, SERVO ON/OFF, dan kondisi keselamatan fisik robot.');
   }
   function renderHealth(data) {
     grid('Informasi penilaian kondisi', [
-      ['Versi aturan', str(data.rule_version)],
-      ['Sumber penilaian', str(data.assessment_source)],
+      ['Sumber penilaian', data.assessment_source === 'rms_rule_engine' ? 'RMS monitoring rules' : 'RMS health assessment'],
+      ['Status bukti', data.indicators?.evidence_complete === true ? 'Lengkap' : 'Belum lengkap'],
     ]);
     const indicators = data.indicators;
     if (indicators && typeof indicators === 'object') {
@@ -400,12 +399,10 @@
   function renderRecommendation(data) {
     grid('Ringkasan rekomendasi', [
       ['Prioritas', str(data.priority)],
-      ['Sumber rekomendasi', str(data.source)],
+      ['Sumber rekomendasi', data.source === 'manual_operator' ? 'Temuan operator' : 'RMS condition review'],
     ]);
     if (data.recommendation) paragraph('Tindakan yang direkomendasikan', data.recommendation);
-    if (data.evidence && typeof data.evidence === 'object') {
-      paragraph('Dasar rekomendasi', JSON.stringify(data.evidence, null, 2));
-    }
+    if (data.evidence && typeof data.evidence === 'object') note('Bukti pendukung rekomendasi sudah tersimpan dan dapat ditinjau pada halaman Maintenance Recommendation.');
     note('Rekomendasi otomatis harus diverifikasi tim maintenance sebelum melakukan tindakan pada robot.');
   }
   const renderers = {
@@ -418,36 +415,14 @@
     maintenance: renderMaintenance,
     recommendation: renderRecommendation,
   };
-  function appendTechnical() {
-    const details = make('details', 'rms-log-technical');
-    const summary = make('summary', '', 'Data teknis (JSON) — untuk pemeriksaan IT / engineer');
-    const content = make('div', 'rms-log-tech-content');
-    const copy = make('button', 'rms-log-copy', 'Salin JSON');
-    copy.type = 'button';
-    copy.addEventListener('click', async () => {
-      try {
-        if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
-        await navigator.clipboard.writeText(jsonText);
-        copy.textContent = 'Tersalin ✓';
-      } catch (_) {
-        copy.textContent = 'Salin manual dari kotak JSON';
-      }
-    });
-    const pre = make('pre', '', jsonText);
-    add(content, copy, pre);
-    add(details, summary, content);
-    body.appendChild(details);
-  }
   function render(record) {
-    const {row, data, raw} = record;
+    const {row, data} = record;
     const typeLabel = row.querySelector('.rms-logs-type')?.textContent.trim() ?? 'Jenis log tidak diketahui';
     const kind = category(typeLabel);
     title.textContent = ({telemetry:'Detail pembacaan sensor', operating:'Detail jam operasi', alarm_snapshot:'Detail snapshot alarm', alarm_event:'Detail kejadian alarm', connection:'Detail koneksi', health:'Detail equipment health', maintenance:'Detail maintenance', recommendation:'Detail rekomendasi'})[kind] || 'Detail log robot';
     subtitle.textContent = `${row.querySelector('.rms-link')?.textContent.trim() || 'Robot'} · ${row.querySelector('.rms-logs-date-cell')?.textContent.trim() || 'Waktu belum tersedia'} WIB`;
     body.replaceChildren();
     body.scrollTop = 0;
-    jsonText = raw;
-
     const meta = make('div', 'rms-log-meta');
     const status = row.querySelector('.rms-logs-status')?.textContent.trim() || 'UNKNOWN';
     const tone = status === 'OK' || status === 'READ OK' || status === 'CONNECTED' ? 'green'
@@ -455,13 +430,12 @@
     add(meta,
       make('span', 'rms-log-tag', typeLabel),
       make('span', `rms-log-tag rms-log-tag--${tone}`, status),
-      make('span', 'rms-log-tag', 'Database historis'));
+      make('span', 'rms-log-tag', 'Historical record'));
     body.appendChild(meta);
     const summary = row.querySelector('.rms-logs-summary')?.textContent.trim();
     if (summary) body.appendChild(make('div', 'rms-log-intro', summary));
     if (renderers[kind]) renderers[kind](data);
-    else paragraph('Isi record', 'Informasi yang belum dikelompokkan tetap dapat dibaca di Data teknis di bawah.');
-    appendTechnical();
+    else paragraph('Isi catatan', 'Informasi untuk jenis catatan ini belum memiliki tampilan khusus.');
   }
 
   // Extract JSON already rendered by Blade; no new endpoint/query is needed.
@@ -476,7 +450,7 @@
       const button = make('button', 'rms-log-view-btn', 'Lihat detail ↗');
       button.type = 'button';
       button.setAttribute('aria-label', `Lihat detail log ${row.querySelector('.rms-link')?.textContent.trim() || 'robot'}`);
-      records.set(button, {row, data, raw});
+      records.set(button, {row, data});
       old.replaceWith(button);
     } catch (_) {
       // If raw JSON is malformed, keep original <details> instead of hiding diagnostics.

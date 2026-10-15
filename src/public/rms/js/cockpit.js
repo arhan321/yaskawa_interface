@@ -20,6 +20,18 @@
     S: '#2588c8', L: '#ee8842', U: '#4aaf78',
     R: '#c14d56', B: '#8068ba', T: '#a67d48'
   };
+  const STATUS_LABELS = {
+    unavailable: 'UNAVAILABLE',
+    not_configured: 'NOT CONFIGURED',
+    normal: 'NORMAL',
+    warning: 'WARNING',
+    critical: 'CRITICAL'
+  };
+  const SOURCE_LABELS = {
+    oem_report: 'OEM Report',
+    oem_cockpit: 'Yaskawa/OEM Cockpit',
+    technician_measurement: 'Technician Measurement'
+  };
   const state = {
     mode: 'measurement',
     visible: new Set(AXES),
@@ -67,7 +79,7 @@
     updateStatus.textContent = text;
     updateStatus.classList.toggle('cp-ok', kind === 'ok');
     updateStatus.classList.toggle('cp-muted', kind !== 'ok');
-    updateStatus.title = 'Pembacaan berkala dari PostgreSQL; bukan deterministic hardware realtime';
+    updateStatus.title = 'Dashboard memperbarui data monitoring secara berkala; bukan pembacaan langsung dari hardware setiap saat';
   }
 
   // ---------- Canvas charts (original Cockpit visualization, retained) ----------
@@ -86,7 +98,7 @@
     return {ctx, w: cssW, h: cssH};
   }
 
-  function drawChart(canvas, points, series, limits = [], yLabel = 'SDK raw') {
+  function drawChart(canvas, points, series, limits = [], yLabel = 'Torque Value') {
     if (!canvas) return false;
     const setup = setupCanvas(canvas);
     if (!setup) return false;
@@ -206,7 +218,7 @@
       }
     }
     const valid = drawChart(canvas, points, series, limits,
-      state.mode === 'variation' ? 'Δ SDK raw' : 'SDK raw');
+      state.mode === 'variation' ? 'Variation Δ' : 'Motor Torque');
     const empty = one('#cp-torque-empty');
     if (empty) empty.hidden = valid;
   }
@@ -231,18 +243,19 @@
     const meta = one('#cp-reducer-meta');
     if (!meta) return;
     if (!latest) {
-      meta.textContent = 'Tidak ada data verified untuk axis ini.';
+      meta.textContent = 'Belum ada data pemeriksaan terverifikasi untuk axis ini.';
       return;
     }
     const life = parsed(latest.remaining_life_hours) === null
       ? 'Belum tersedia'
-      : `${fmt(latest.remaining_life_hours)} jam (OEM)`;
-    meta.innerHTML = `<strong>Sumber:</strong> ${escapeHTML(latest.source_type)} · ` +
+      : `${fmt(latest.remaining_life_hours)} jam (sesuai sumber)`;
+    const sourceLabel = SOURCE_LABELS[latest.source_type] || latest.source_type || 'Tidak diketahui';
+    meta.innerHTML = `<strong>Sumber:</strong> ${escapeHTML(sourceLabel)} · ` +
       `${escapeHTML(latest.source_reference)}` +
       `<br><strong>Pengukuran:</strong> ${escapeHTML(latest.measured_at)} · ` +
       `${escapeHTML(latest.condition_value ?? '—')} ` +
       `${escapeHTML(latest.condition_unit ?? '')}` +
-      `<br><strong>Remaining life:</strong> ${escapeHTML(life)}`;
+      `<br><strong>Sisa umur dari sumber:</strong> ${escapeHTML(life)}`;
   }
 
   // ---------- Live DOM synchronization ----------
@@ -253,10 +266,10 @@
       const verified = parsed(payload.operating_hours);
       const raw = parsed(payload.operating_candidate_hours);
       metrics[1].textContent = verified !== null ? `${fmt(verified, 2)} h` :
-        raw !== null ? `${fmt(raw, 2)} h (RAW)` : 'Belum tersedia';
+        raw !== null ? `${fmt(raw, 2)} h (NOT VERIFIED)` : 'Belum tersedia';
       const small = metrics[1].parentElement?.querySelector('small');
-      if (small) small.textContent = verified !== null ? 'Jam sudah diverifikasi untuk PM' :
-        raw !== null ? 'Hasil parse SDK; BELUM untuk jadwal PM' : 'Perlu pembacaan operating time';
+      if (small) small.textContent = verified !== null ? 'Jam sudah diverifikasi untuk jadwal PM' :
+        raw !== null ? 'Format nilai belum diverifikasi; jangan dipakai untuk jadwal PM' : 'Operating Time belum tersedia';
     }
     if (metrics[2]) metrics[2].textContent = String(payload.open_threshold_count ?? 0);
     if (metrics[3]) {
@@ -265,8 +278,8 @@
       if (small) {
         const raw = payload.alarm_raw;
         small.textContent = raw?.reported_count === null || raw?.reported_count === undefined
-          ? 'Status raw SDK belum terstruktur'
-          : `Raw SDK: ${raw.reported_count} · teridentifikasi: ${raw.identified_count ?? 0}`;
+          ? 'Controller Alarm summary belum tersedia'
+          : `Controller reported: ${raw.reported_count} · RMS identified: ${raw.identified_count ?? 0}`;
       }
     }
     // Don't replace the last pill: rms-live.js also updates that same element.
@@ -288,12 +301,12 @@
       const detail = one('.cp-axis-measure small', row);
       const badge = one('.cp-state', row);
       if (main) main.textContent = fmt(value.value, 4);
-      if (detail) detail.textContent = `Torque SDK raw · Pulse ${fmt(value.pulse, 0)}`;
+      if (detail) detail.textContent = `Motor Torque · Position ${fmt(value.pulse, 0)} pulse`;
       if (badge) {
         const status = ['unavailable', 'not_configured', 'normal', 'warning', 'critical']
           .includes(value.status) ? value.status : 'unavailable';
         badge.className = `cp-state cp-${status}`;
-        badge.textContent = status.replaceAll('_', ' ').toUpperCase();
+        badge.textContent = STATUS_LABELS[status];
       }
     });
   }
@@ -327,15 +340,16 @@
       const row = document.createElement('tr');
       const cell = document.createElement('td');
       cell.colSpan = 5;
-      cell.textContent = 'Belum ada pelanggaran threshold yang tercatat. ' +
-        'Ini tidak berarti robot dipastikan sehat.';
+      cell.textContent = 'Belum ada Threshold Event yang tercatat. ' +
+        'Kondisi ini tidak otomatis membuktikan robot sehat; pastikan threshold sudah dikonfigurasi dan telemetry masih Fresh.';
       row.append(cell);
       table.append(row);
     } else {
       for (const event of events) {
         const row = document.createElement('tr');
+        const eventStatus = String(event.status || '—').toUpperCase();
         const fields = [event.time || '—', event.axis || '—', null,
-          event.status || '—', fmt(event.peak_magnitude, 4)];
+          eventStatus, fmt(event.peak_magnitude, 4)];
         fields.forEach((field, index) => {
           const cell = document.createElement('td');
           if (index === 2) {
@@ -343,7 +357,8 @@
               ? event.severity : 'unavailable';
             const badge = document.createElement('span');
             badge.className = `cp-state cp-${severity}`;
-            badge.textContent = String(event.severity || 'UNKNOWN').toUpperCase();
+            badge.textContent = severity === 'critical' ? 'CRITICAL' :
+              severity === 'warning' ? 'WARNING' : 'UNKNOWN';
             cell.append(badge);
           } else {
             cell.textContent = field;
@@ -354,22 +369,22 @@
       }
     }
     const subtitle = one('.cp-last-row > .cp-panel:first-child .cp-panel-sub');
-    if (subtitle) subtitle.textContent = `${events.length} record terbaru`;
+    if (subtitle) subtitle.textContent = `${events.length} latest records`;
   }
 
   function updateQuality(payload) {
     const fields = all('.cp-quality > div > span');
     if (fields[0]) fields[0].textContent = payload.fresh
-      ? 'Sampel segar' : 'Tidak segar atau belum tersedia';
+      ? 'Fresh data' : 'Stale or unavailable';
     if (fields[1]) fields[1].textContent =
       `${payload.quality?.approved_rules ?? 0} / 6 axis`;
     if (fields[2]) fields[2].textContent =
       `${payload.quality?.verified_reducers ?? 0} / 6 axis`;
     const state = payload.controller_state;
     if (fields[3]) fields[3].textContent = state
-      ? `Mode ${state.control_mode ?? '?'} · RUN ${state.running === null ? '?' : state.running ? 'ON' : 'OFF'} · SERVO ${state.servo_on === null ? '?' : state.servo_on ? 'ON' : 'OFF'} (SDK raw)`
-      : 'Tidak ada status controller segar';
-    if (fields[4]) fields[4].textContent = 'Job/I-O belum tervalidasi dari SDK';
+      ? `Mode ${state.control_mode ?? '?'} · RUN ${state.running === null ? '?' : state.running ? 'ON' : 'OFF'} · SERVO ${state.servo_on === null ? '?' : state.servo_on ? 'ON' : 'OFF'}`
+      : 'Current controller state unavailable';
+    if (fields[4]) fields[4].textContent = 'Job/I-O monitoring belum tersedia';
     const lastUpdate = one('#rms-last-update');
     const timestamp = Date.parse(payload.server_time);
     if (lastUpdate && Number.isFinite(timestamp)) {
@@ -421,7 +436,7 @@
       updateQuality(payload);
       renderTorque();
       renderReducer();
-      indicator(payload.fresh ? 'DATA LIVE · AUTO 5s' : 'DATA STALE · AUTO 5s',
+      indicator(payload.fresh ? 'LIVE UPDATE · AUTO 5s' : 'STALE DATA · AUTO 5s',
         payload.fresh ? 'ok' : 'stale');
     } catch (error) {
       // Cancelling an old history range is expected when switching 1h / 8h / 24h.
@@ -444,7 +459,7 @@
           pill.classList.add('cp-muted');
         }
       }
-      indicator('DATA API GAGAL · MENCOBA LAGI', 'error');
+      indicator('DATA UPDATE FAILED · RETRYING', 'error');
     } finally {
       clearTimeout(timeout);
       if (activeController === controller) activeController = null;
@@ -526,7 +541,7 @@
     else void refresh();
   });
 
-  indicator('AUTO UPDATE STARTING');
+  indicator('STARTING LIVE UPDATE');
   renderTorque();
   renderReducer();
   void refresh();

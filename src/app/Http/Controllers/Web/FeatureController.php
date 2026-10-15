@@ -12,7 +12,7 @@ class FeatureController extends BaseRmsWebController
     {
         // Project plan status, not claims of deployed features.
         $features = [
-            ['name' => 'YMConnect connection', 'stage' => 'poc_tested'],
+            ['name' => 'Controller data connection', 'stage' => 'poc_tested'],
             ['name' => 'Position PULSE monitoring', 'stage' => 'poc_tested'],
             ['name' => 'Torque monitoring', 'stage' => 'poc_tested'],
             ['name' => 'Active alarm reading', 'stage' => 'partially_tested'],
@@ -31,7 +31,7 @@ class FeatureController extends BaseRmsWebController
         return view('rms.features.index', [
             'title' => 'Development Status',
             'features' => $features,
-            'note' => 'Stages indicate scope/POC readiness. They do not mean end-to-end production deployment.',
+            'note' => 'Status menunjukkan tingkat kesiapan setiap fungsi. TESTED tidak otomatis berarti fungsi sudah siap digunakan pada seluruh robot production.',
         ]);
     }
 }

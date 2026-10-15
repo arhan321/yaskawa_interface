@@ -17,7 +17,7 @@ class NotificationController extends BaseRmsWebController
             'deliveryEnabled' => false,
             'rules' => collect(),
             'deliveryLogs' => collect(),
-            'message' => 'Email rules, recipients and delivery logs require new migrations and a mail service.',
+            'message' => 'Tujuan penerima, aturan pengiriman, dan riwayat notifikasi belum dikonfigurasi.',
         ]);
     }
 }

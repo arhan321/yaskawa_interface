@@ -56,7 +56,7 @@ class AnalyticsController extends BaseRmsWebController
                 'downtime_minutes' => null,
                 'running_minutes' => null,
             ],
-            'unavailableReason' => 'RUN/IDLE/STOP/UNKNOWN event durations and shift schedule are not in the current schema.',
+            'unavailableReason' => 'Durasi RUN/IDLE/STOP/UNKNOWN dan jadwal shift belum tersedia pada monitoring data saat ini.',
         ]);
     }
 }

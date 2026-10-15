@@ -23,7 +23,7 @@
       return;
     }
     button.disabled = true;
-    render('Menguji dari server Laravel…', 'pending');
+    render('Menguji koneksi dari komputer monitoring…', 'pending');
     try {
       const body = new URLSearchParams({ip_address: value});
       const response = await fetch(form.dataset.probeUrl, {
@@ -38,8 +38,13 @@
         cache: 'no-store',
         body,
       });
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message || `HTTP ${response.status}`);
+      let data;
+      try {
+        data = await response.json();
+      } catch (_) {
+        throw new Error('Hasil pemeriksaan tidak dapat dibaca. Coba lagi.');
+      }
+      if (!response.ok || !data.ok) throw new Error(data.message || 'Pemeriksaan IP gagal. Coba lagi.');
       render(`VALID · ${data.message}`, 'ok');
     } catch (error) {
       render(`GAGAL · ${error.message || error}`, 'error');

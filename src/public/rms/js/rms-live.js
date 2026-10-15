@@ -2,6 +2,13 @@
 
 const AXES = ['S','L','U','R','B','T'];
 const STATUS_CLASSES = ['connected','offline','stale','unknown','healthy','warning','critical'];
+const COCKPIT_STATUS_LABELS = {
+    unavailable: 'UNAVAILABLE',
+    not_configured: 'NOT CONFIGURED',
+    normal: 'NORMAL',
+    warning: 'WARNING',
+    critical: 'CRITICAL'
+};
 const one = (selector, root = document) => root.querySelector(selector);
 const all = (selector, root = document) => [...root.querySelectorAll(selector)];
 const fmt = (value, digits = 2) => value === null || value === undefined || !Number.isFinite(Number(value))
@@ -152,10 +159,10 @@ function updateCockpit(robot) {
         const detail=one('.cp-axis-measure small',row);
         const state=one('.cp-state',row);
         if (major) major.textContent=readable?fmt(value.torque,4):'—';
-        if (detail) detail.textContent=`Torque SDK raw · Pulse ${robot.position_ok ? fmt(value.pulse,0) : '—'}`;
+        if (detail) detail.textContent=`Motor Torque · Position ${robot.position_ok ? fmt(value.pulse,0) : '—'} pulse`;
         if (state) {
             state.className='cp-state cp-'+value.status;
-            state.textContent=value.status.replaceAll('_',' ').toUpperCase();
+            state.textContent=COCKPIT_STATUS_LABELS[value.status] || 'STATUS TIDAK DIKETAHUI';
         }
     });
     // Cockpit owns graph rendering and UI state; do not recreate its canvas.
@@ -200,10 +207,11 @@ export function initRmsLive(Echo) {
                 if(page==='cockpit') updateCockpit(robot);
             }
             const demo = data.robots.some(r=>r.is_demo);
-            status(connected ? (demo?'STREAM CONNECTED · DEMO':'STREAM CONNECTED') :
-                (demo?'POLLING FALLBACK · DEMO':'POLLING FALLBACK'),connected?'connected':'fallback');
+            status(connected ? (demo?'LIVE UPDATE ACTIVE · DEMO':'LIVE UPDATE ACTIVE') :
+                (demo?'AUTO UPDATE ACTIVE · DEMO':'AUTO UPDATE ACTIVE'),connected?'connected':'fallback');
         } catch(err) {
-            status(`DATA UNAVAILABLE · ${String(err.message||err)}`,'error');
+            console.warn('[RMS Live] Monitoring update failed:', err);
+            status('MONITORING DATA UNAVAILABLE · RETRYING','error');
         } finally {inflight=false;}
     }
     function checkAge() {
@@ -224,7 +232,7 @@ export function initRmsLive(Echo) {
             if(page==='monitor')updateCards(latest.robots,page);
             if(page==='detail')updateDetail(latest.robots[0]);
             if(page==='cockpit')updateCockpit(latest.robots[0]);
-            status('TELEMETRY STALE · waiting for data','stale');
+            status('TELEMETRY STALE · WAITING FOR DATA','stale');
         }
     }
     reconcile();
@@ -236,7 +244,7 @@ export function initRmsLive(Echo) {
     },1000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)reconcile();});
     window.addEventListener('beforeunload',()=>clearInterval(timer));
-    if(!key){status('POLLING MODE · REVERB KEY NOT SET','fallback');return;}
+    if(!key){status('AUTO UPDATE ACTIVE','fallback');return;}
     try {
         const secure=location.protocol==='https:';
         const port=Number(location.port)||(secure?443:80);
@@ -244,11 +252,11 @@ export function initRmsLive(Echo) {
             wsPort:port,wssPort:port,forceTLS:secure,enabledTransports:['ws','wss'],disableStats:true});
         const conn=echo.connector.pusher.connection;
         conn.bind('connected',()=>{connected=true;reconcile();});
-        conn.bind('disconnected',()=>{connected=false;status('RECONNECTING · POLLING FALLBACK','fallback');reconcile();});
-        conn.bind('unavailable',()=>{connected=false;status('WEBSOCKET OFFLINE · POLLING FALLBACK','fallback');reconcile();});
+        conn.bind('disconnected',()=>{connected=false;status('LIVE UPDATE RECONNECTING · AUTO UPDATE ACTIVE','fallback');reconcile();});
+        conn.bind('unavailable',()=>{connected=false;status('LIVE UPDATE OFFLINE · AUTO UPDATE ACTIVE','fallback');reconcile();});
         echo.channel('rms.fleet').listen('.rms.robot.changed',event=>{
             if(robotId && Number(event.robot_id)!==robotId) return;
             if(notifyTimeout===null) notifyTimeout=setTimeout(()=>{notifyTimeout=null;reconcile();},250);
         });
-    } catch(e) { status('WEBSOCKET NOT READY · POLLING FALLBACK','fallback'); }
+    } catch(e) { status('AUTO UPDATE ACTIVE','fallback'); }
 }

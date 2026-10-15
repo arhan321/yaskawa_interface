@@ -1,7 +1,7 @@
 @extends('rms.layouts.app')
 
 @section('heading', 'Robot log history')
-@section('subtitle', 'Histori lintas robot dari PostgreSQL — waktu WIB (Asia/Jakarta), filter shift dan ekspor Excel.')
+@section('subtitle', 'Robot history dalam waktu WIB, dilengkapi filter shift dan Excel export.')
 @section('content')
 
 <section class="rms-logs-intro panel" aria-label="Ringkasan rentang log">
@@ -195,8 +195,9 @@
             <td class="rms-logs-summary">{{ $entry['summary'] }}</td>
             <td>
               <details class="rms-logs-details">
-                <summary>Data</summary>
-                <pre>{{ json_encode($entry['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) }}</pre>
+                <summary>Lihat detail</summary>
+                <p>Detail lengkap belum dapat ditampilkan pada mode browser ini.</p>
+                <pre hidden aria-hidden="true">{{ json_encode($entry['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) }}</pre>
               </details>
             </td>
           </tr>
@@ -207,12 +208,12 @@
     </table>
   </div>
   <div class="rms-logs-pagination">
-    <span>Menampilkan {{ count($entries) }} baris pada halaman ini · pagination berbasis cursor</span>
+    <span>Menampilkan {{ count($entries) }} baris pada halaman ini</span>
     <div class="rms-logs-pagination-actions">
       @if($page->previousPageUrl())<a class="btn" href="{{ $page->previousPageUrl() }}">← Sebelumnya</a>@endif
       @if($page->nextPageUrl())<a class="btn" href="{{ $page->nextPageUrl() }}">Berikutnya →</a>@endif
     </div>
   </div>
-  <div class="rms-logs-note">Ekspor Excel dibatasi maksimal 5.000 baris per permintaan untuk menjaga performa server. Jika data lebih banyak, laporan memberi penanda DIPOTONG. Sempitkan waktu atau pilih robot tertentu untuk mengekspor sisanya.</div>
+  <div class="rms-logs-note">Ekspor Excel dibatasi maksimal 5.000 baris per permintaan agar dashboard tetap ringan. Jika data lebih banyak, laporan memberi penanda DIPOTONG. Sempitkan waktu atau pilih robot tertentu untuk mengekspor sisanya.</div>
 </section>
 @endsection

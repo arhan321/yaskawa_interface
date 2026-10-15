@@ -12,24 +12,24 @@
 @endif
 
 <div class="notice blue rms-registry-note">
-  <strong>Validasi wajib:</strong> Laravel akan menguji IP dari server/container ini sebelum menyimpan. Pemeriksaan ini non-invasive dan hanya memastikan ada perangkat yang merespons jaringan. Identitas Yaskawa tetap dikonfirmasi oleh collector YMConnect saat event connected pertama masuk.
+  <strong>Pemeriksaan wajib:</strong> RMS akan menguji IP dari komputer monitoring sebelum menyimpan. Uji ini tidak mengirim perintah ke robot dan hanya memastikan alamat dapat dijangkau. Identitas controller Yaskawa dikonfirmasi saat data controller pertama diterima.
 </div>
 
 <form method="POST" action="{{ route('rms.robots.store') }}" class="rms-registry-form" data-robot-registry-form data-probe-url="{{ route('rms.robots.probe') }}">
   @csrf
   <section class="panel">
-    <div class="panel-header"><div><h2>Controller Yaskawa</h2><p>Alamat controller yang akan digunakan collector YMConnect.</p></div><span class="badge sdk">READ-ONLY</span></div>
+    <div class="panel-header"><div><h2>Controller Yaskawa</h2><p>Alamat controller yang akan digunakan oleh RMS.</p></div><span class="badge sdk">READ-ONLY</span></div>
     <div class="registry-grid">
       <label class="field"><span>Controller code *</span><input class="input" name="controller_code" value="{{ old('controller_code') }}" placeholder="YRC1000_DOJO_R1" required></label>
       <label class="field"><span>Controller model *</span><input class="input" name="controller_model" value="{{ old('controller_model', 'YRC1000') }}" required></label>
-      <label class="field registry-ip-field"><span>IP address *</span><input class="input" name="ip_address" data-ip-input value="{{ old('ip_address', '192.168.255.1') }}" inputmode="numeric" placeholder="192.168.255.1" required><small>YMConnect memakai UDP {{ implode(' dan ', $probePorts) }}.</small></label>
-      <div class="field registry-probe-field"><span>Preflight jaringan</span><div class="registry-probe-row"><button type="button" class="btn" data-probe-button>Uji IP</button><span class="registry-probe-status" data-probe-status role="status" aria-live="polite">Belum diuji</span></div></div>
+      <label class="field registry-ip-field"><span>IP address *</span><input class="input" name="ip_address" data-ip-input value="{{ old('ip_address', '192.168.255.1') }}" inputmode="numeric" placeholder="192.168.255.1" required><small>Port komunikasi controller: {{ implode(' dan ', $probePorts) }}. Tombol Uji IP hanya memeriksa jangkauan jaringan.</small></label>
+      <div class="field registry-probe-field"><span>Pemeriksaan jaringan</span><div class="registry-probe-row"><button type="button" class="btn" data-probe-button>Uji IP</button><span class="registry-probe-status" data-probe-status role="status" aria-live="polite">Belum diuji</span></div></div>
       <label class="field"><span>Lokasi / line</span><input class="input" name="location" value="{{ old('location') }}" placeholder="Welding 2 / DOJO"></label>
     </div>
   </section>
 
   <section class="panel">
-    <div class="panel-header"><div><h2>Identitas robot</h2><p>Data ini dipakai sebagai registry dan mapping collector.</p></div></div>
+    <div class="panel-header"><div><h2>Identitas robot</h2><p>Data ini digunakan sebagai identitas robot pada RMS.</p></div></div>
     <div class="registry-grid">
       <label class="field"><span>Robot code *</span><input class="input" name="robot_code" value="{{ old('robot_code') }}" placeholder="DOJO_SP210_R1" required></label>
       <label class="field"><span>Nama robot *</span><input class="input" name="name" value="{{ old('name') }}" placeholder="Yaskawa SP210 - DOJO" required></label>
@@ -42,7 +42,7 @@
     </div>
   </section>
 
-  <div class="registry-actions"><a href="{{ route('rms.robots.index') }}" class="btn">Batal</a><button type="submit" class="btn primary">Simpan robot terverifikasi</button></div>
+  <div class="registry-actions"><a href="{{ route('rms.robots.index') }}" class="btn">Batal</a><button type="submit" class="btn primary">Simpan robot</button></div>
 </form>
-<script src="{{ asset('rms/js/robot-registry.js') }}" defer></script>
+<script src="{{ asset('rms/js/robot-registry.js') }}?v=20261015-2315" defer></script>
 @endsection

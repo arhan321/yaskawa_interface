@@ -21,7 +21,7 @@ class ConnectionController extends BaseRmsWebController
             'staleCount' => $robots->where('connectivity', 'stale')->count(),
             'offlineCount' => $robots->where('connectivity', 'offline')->count(),
             'unknownCount' => $robots->where('connectivity', 'unknown')->count(),
-            'architecture' => ['YMConnect C++', 'SLURBT', 'PostgreSQL', 'Laravel Web'],
+            'architecture' => ['Controller Yaskawa', 'Pengiriman Data', 'Penyimpanan RMS', 'Yaskawa Cockpit'],
         ]);
     }
 }

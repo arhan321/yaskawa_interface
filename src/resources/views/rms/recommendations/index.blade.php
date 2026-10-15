@@ -21,8 +21,8 @@
 
 <div class="rec-control-row">
     <div class="rec-engine">
-        <span class="badge rms-badge {{ $generationEnabled ? 'connected' : 'unknown' }}">RULE ENGINE {{ $generationEnabled ? 'ON' : 'OFF' }}</span>
-        <small>{{ $generationEnabled ? 'Evaluasi terjadwal menggunakan rule RMS; hasil hanya muncul jika data mendukung.' : 'Otomatisasi belum diaktifkan. Rekomendasi tersimpan tetap bisa ditindaklanjuti.' }}</small>
+        <span class="badge rms-badge {{ $generationEnabled ? 'connected' : 'unknown' }}">AUTOMATIC REVIEW {{ $generationEnabled ? 'ON' : 'OFF' }}</span>
+        <small>{{ $generationEnabled ? 'RMS meninjau kondisi secara berkala; hasil hanya muncul jika data mendukung.' : 'Pemeriksaan otomatis belum diaktifkan. Rekomendasi tersimpan tetap bisa ditindaklanjuti.' }}</small>
     </div>
     @if($writesEnabled)
     <details class="rec-add" id="tambah-temuan">
@@ -47,7 +47,7 @@
         </form>
     </details>
     @else
-    <small class="rec-write-off">Mode catat tindakan belum diaktifkan pada server.</small>
+    <small class="rec-write-off">Mode catat tindakan belum diaktifkan oleh administrator RMS.</small>
     @endif
 </div>
 
@@ -74,11 +74,20 @@
                 $ongoing = in_array($r->status, ['open', 'acknowledged'], true);
                 $activities = $actionsByRecommendation->get($r->id, collect());
                 $evidence = is_array($r->evidence) ? $r->evidence : [];
+                $sourceLabel = $manual ? 'Temuan operator' : 'RMS condition review';
+                $conditionKey = (string) ($evidence['rule_key'] ?? '');
+                $conditionLabel = str_starts_with($conditionKey, 'axis_')
+                    ? 'Torque Threshold · Axis '.strtoupper(substr($conditionKey, 5))
+                    : match($conditionKey) {
+                        'active_alarm' => 'Controller Alarm',
+                        'maintenance_due' => 'Maintenance Due',
+                        default => 'RMS condition review',
+                    };
             @endphp
             <article class="rec-item" id="recommendation-{{ $r->id }}">
                 <div class="rec-top">
                     <div class="rec-title-area">
-                        <div class="rec-meta"><strong>{{ $r->robot?->robot_code ?? 'Robot tidak tersedia' }}</strong><span class="rec-separator">•</span><span>{{ $r->generated_at?->timezone('Asia/Jakarta')->format('d M Y H:i') ?? 'Waktu tidak tersedia' }} WIB</span><span class="rec-separator">•</span><span>{{ $manual ? 'MANUAL / OPERATOR' : 'RMS / '.strtoupper(str_replace('_',' ', $r->source)) }}</span></div>
+                        <div class="rec-meta"><strong>{{ $r->robot?->robot_code ?? 'Robot tidak tersedia' }}</strong><span class="rec-separator">•</span><span>{{ $r->generated_at?->timezone('Asia/Jakarta')->format('d M Y H:i') ?? 'Waktu tidak tersedia' }} WIB</span><span class="rec-separator">•</span><span>{{ strtoupper($sourceLabel) }}</span></div>
                         <h3>{{ $r->title }}</h3>
                     </div>
                     <div class="rec-labels">
@@ -96,7 +105,7 @@
                     <details class="rec-details">
                         <summary>Lihat bukti & riwayat</summary>
                         <div class="rec-detail-body">
-                            <p><strong>Sumber:</strong> {{ $manual ? 'Temuan manual' : $r->source }}</p>
+                            <p><strong>Sumber:</strong> {{ $sourceLabel }}</p>
                             @if($r->healthAssessment)
                                 <p><strong>Health assessment tercatat:</strong> {{ strtoupper($r->healthAssessment->health_status) }} — {{ $r->healthAssessment->summary }}</p>
                                 <p class="rms-muted-small">Snapshot health bukan jaminan kondisi robot saat ini; cek telemetry terbaru.</p>
@@ -104,7 +113,15 @@
                             @if($r->maintenancePlan)<p><strong>Jadwal PM terkait:</strong> {{ $r->maintenancePlan->title }}</p>@endif
                             @if($evidence)
                                 <p><strong>Evidence tersimpan:</strong></p>
-                                <pre class="rec-evidence">{{ json_encode($evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) }}</pre>
+                                <div class="rec-evidence">
+                                    @if(!empty($evidence['reported_by']))<p><strong>Dilaporkan oleh:</strong> {{ $evidence['reported_by'] }}</p>@endif
+                                    @if(!empty($evidence['axis']))<p><strong>Axis:</strong> {{ $evidence['axis'] }}</p>@endif
+                                    @if(!empty($evidence['finding']))<p><strong>Temuan:</strong> {{ $evidence['finding'] }}</p>@endif
+                                    @if(!empty($evidence['recorded_at']))<p><strong>Waktu dicatat:</strong> {{ \Carbon\Carbon::parse($evidence['recorded_at'])->timezone('Asia/Jakarta')->format('d M Y H:i') }} WIB</p>@endif
+                                    @if(!empty($evidence['rule_key']))<p><strong>Dasar pemeriksaan:</strong> {{ $conditionLabel }}</p>@endif
+                                    @if(!empty($evidence['assessment_id']))<p><strong>Health review:</strong> #{{ $evidence['assessment_id'] }}</p>@endif
+                                    @if(empty(array_intersect(['reported_by','axis','finding','recorded_at','rule_key','assessment_id'], array_keys($evidence))))<p>Bukti pendukung tercatat pada RMS dan dapat ditinjau bersama administrator.</p>@endif
+                                </div>
                             @else<p class="rms-muted-small">Bukti terstruktur belum tersedia untuk rekomendasi ini.</p>@endif
                             @if($r->acknowledged_by)<p><strong>Ditangani oleh:</strong> {{ $r->acknowledged_by }} {{ $r->acknowledged_at?->timezone('Asia/Jakarta')->format('d M Y H:i') }}</p>@endif
                             @if($r->closed_at)<p><strong>Ditutup:</strong> {{ $r->closed_at->timezone('Asia/Jakarta')->format('d M Y H:i') }} WIB — {{ $r->closure_note }}</p>@endif
@@ -153,5 +170,5 @@
     <div class="rms-pagination">{{ $recommendations->links() }}</div>
     @endif
 </section>
-<div class="rms-note"><strong>Catatan:</strong> {{ $note }} Reverb Connected hanya status WebSocket, bukan bukti data robot segar. Rekap ini tidak mengirim perintah ke YRC1000.</div>
+<div class="rms-note"><strong>Catatan:</strong> {{ $note }} Live Update Active hanya menunjukkan pembaruan dashboard tersedia, bukan bukti telemetry robot masih Fresh. Rekap ini tidak mengirim perintah ke YRC1000.</div>
 @endsection

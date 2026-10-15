@@ -59,6 +59,7 @@ use App\Http\Controllers\Web\ConnectionController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\HardwareController;
 use App\Http\Controllers\Web\FeatureController;
+use App\Http\Controllers\Web\RmsConfigurationController;
 
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
@@ -144,6 +145,22 @@ Route::prefix('rms')
         ])
         ->whereNumber('robot')
         ->name('robots.cockpit');
+
+        // Trusted-LAN configuration for evidence-backed threshold/reducer data.
+        Route::get('/robots/{robot}/configuration', [
+            RmsConfigurationController::class,
+            'edit'
+        ])->whereNumber('robot')->name('robots.configuration');
+
+        Route::put('/robots/{robot}/configuration/threshold', [
+            RmsConfigurationController::class,
+            'saveThreshold'
+        ])->whereNumber('robot')->middleware('throttle:30,1')->name('robots.configuration.threshold');
+
+        Route::post('/robots/{robot}/configuration/reducer', [
+            RmsConfigurationController::class,
+            'storeReducerMeasurement'
+        ])->whereNumber('robot')->middleware('throttle:20,1')->name('robots.configuration.reducer');
 
         // ====================================================
         // ROBOT COCKPIT LIVE - MERGED FROM rms_cockpit_live.php

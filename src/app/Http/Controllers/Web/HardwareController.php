@@ -15,9 +15,9 @@ class HardwareController extends BaseRmsWebController
             'estimationAvailable' => false,
             'estimatedRemainingLife' => null,
             'researchItems' => [
-                'Verify SDK diagnostic fields and engineering units.',
-                'Collect and validate long-term condition history.',
-                'Define baseline, failure criteria and maintenance review.',
+                'Cocokkan nilai diagnosis controller dengan pendant dan dokumen Yaskawa.',
+                'Kumpulkan dan periksa histori kondisi komponen jangka panjang.',
+                'Tentukan kondisi pembanding, batas pemeriksaan, dan prosedur review maintenance.',
             ],
             'note' => 'Hardware life prediction is under investigation, not a deployed feature.',
         ]);

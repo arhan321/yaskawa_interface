@@ -222,7 +222,7 @@
       @endif
     </article>
   @empty
-    <div class="panel">@include('rms.partials.no-data',['message'=>'Belum ada maintenance plan di PostgreSQL.'])</div>
+    <div class="panel">@include('rms.partials.no-data',['message'=>'Belum ada Maintenance Plan yang tersimpan.'])</div>
   @endforelse
   </div>
   <div class="rms-pagination">{{ $plans->links() }}</div>

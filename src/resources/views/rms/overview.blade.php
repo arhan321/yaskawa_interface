@@ -1,20 +1,20 @@
 @extends('rms.layouts.app')
 @section('heading', 'Line overview')
-@section('subtitle', 'Monitoring peralatan robot Yaskawa — status koneksi collector, health, alarm, dan maintenance.')
+@section('subtitle', 'Monitoring peralatan robot Yaskawa — telemetry, health, alarm, dan maintenance.')
 {{-- Realtime pages are synchronized by Reverb + JSON reconciliation; no full HTML replacement. --}}
 @section('auto_refresh', 'off')
 @section('content')
 <div class="notice rms-status-notice"><span>◉</span><span><strong>{{ $summary['connected_collectors'] }} dari {{ $summary['total_robots'] }} robot menerima telemetry segar</strong> · {{ $summary['stale_or_unknown'] }} stale/unknown · {{ $summary['offline_collectors'] }} offline</span><span class="right">Sample segar ≠ RUN</span></div>
 <div class="stats">
  @include('rms.partials.metric',['label'=>'Robot terdaftar','value'=>$summary['total_robots'],'unit'=>'unit','description'=>$summary['active_robots'].' aktif di registry'])
- @include('rms.partials.metric',['label'=>'Telemetry connected','value'=>$summary['connected_collectors'],'unit'=>'collector','description'=>'Pembacaan valid & terbaru'])
+ @include('rms.partials.metric',['label'=>'Telemetry connected','value'=>$summary['connected_collectors'],'unit'=>'robot','description'=>'Pembacaan valid & terbaru'])
  @include('rms.partials.metric',['label'=>'Alarm aktif teridentifikasi','value'=>$summary['identified_active_alarms'],'unit'=>'event','description'=>'Hanya structured alarm'])
  @include('rms.partials.metric',['label'=>'Maintenance recommendation','value'=>$summary['open_recommendations'],'unit'=>'open','description'=>'Rekomendasi tersimpan'])
 </div>
 <section><div class="section-heading"><h2>Robot overview <span class="count">{{ $robots->count() }}</span></h2><div class="flex gap"><a class="btn" href="{{ route('rms.robots.index') }}">Seluruh robot →</a><a class="btn primary" href="{{ route('rms.robots.create') }}">＋ Tambah robot</a></div></div>
  @forelse($robots->chunk(4) as $group)
  <div class="robot-grid rms-robot-grid">@foreach($group as $item) @include('rms.partials.robot-card',['item'=>$item]) @endforeach</div>
- @empty @include('rms.partials.no-data',['title'=>'Belum ada robot di database','message'=>'Tambahkan master controller dan robot terlebih dahulu sebelum collector mengirim data.']) @endforelse
+ @empty @include('rms.partials.no-data',['title'=>'Belum ada robot terdaftar','message'=>'Tambahkan controller dan robot terlebih dahulu sebelum monitoring data diterima.']) @endforelse
 </section>
 <div class="two-col overview-lower">
  <section class="panel"><div class="panel-header"><div><h2>Perlu perhatian</h2><p>Alarm aktif dan gangguan pembacaan yang diketahui</p></div><a href="{{ route('rms.alarms.index') }}" class="btn text">Alarm center →</a></div>
@@ -31,5 +31,5 @@
  @empty @include('rms.partials.no-data',['message'=>'Belum ada maintenance plan aktif dengan tanggal due.']) @endforelse
  </section>
 </div>
-<div class="rms-note"><strong>Belum tersedia:</strong> status RUN/IDLE, executing job, I/O dan utilization belum bisa dihitung dari schema collector saat ini. Tidak ditampilkan sebagai angka palsu.</div>
+<div class="rms-note"><strong>Belum tersedia:</strong> status RUN/IDLE, Executing Job, I/O, dan Utilization belum tersedia dari sumber monitoring saat ini. Nilai yang belum terverifikasi tidak akan ditampilkan.</div>
 @endsection

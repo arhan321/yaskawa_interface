@@ -98,7 +98,7 @@ class RobotController extends BaseRmsWebController
         });
 
         return redirect()->route('rms.robots.index')
-            ->with('success', 'Robot berhasil didaftarkan setelah IP merespons dari server Laravel. Collector YMConnect tetap wajib melakukan verifikasi controller saat mulai ingest.');
+            ->with('success', 'Robot berhasil didaftarkan setelah IP dapat dijangkau. Identitas controller Yaskawa akan dikonfirmasi saat data controller pertama diterima.');
     }
 
     /**
@@ -152,7 +152,7 @@ class RobotController extends BaseRmsWebController
             report($exception);
 
             return back()->withErrors([
-                'robot' => 'Robot tidak dapat dihapus. Tidak ada data yang diubah; periksa log Laravel untuk detailnya.',
+                'robot' => 'Robot tidak dapat dihapus. Tidak ada data yang diubah; hubungi administrator RMS untuk pemeriksaan lebih lanjut.',
             ]);
         }
 

@@ -70,7 +70,7 @@ final class RecommendationController extends BaseRmsWebController
             'filter' => $filter,
             'generationEnabled' => (bool) config('rms_recommendations.auto_enabled', false),
             'writesEnabled' => (bool) config('rms_recommendations.writes_enabled', false),
-            'note' => 'Rekomendasi bukan perintah menggerakkan robot. Sumber auto berasal dari RMS Health Engine dan perlu inspeksi sesuai SOP.',
+            'note' => 'Rekomendasi bukan perintah menggerakkan robot. Saran otomatis berasal dari penilaian kondisi RMS dan tetap memerlukan inspeksi sesuai SOP.',
         ]);
     }
 
@@ -216,6 +216,6 @@ final class RecommendationController extends BaseRmsWebController
     private function requireWritable(): void
     {
         abort_unless((bool) config('rms_recommendations.writes_enabled', false), 403,
-            'Penulisan rekomendasi dinonaktifkan. Aktifkan RMS_RECOMMENDATION_WRITES_ENABLED hanya di jaringan internal terpercaya.');
+            'Mode pencatatan rekomendasi sedang dinonaktifkan. Hubungi administrator RMS.');
     }
 }

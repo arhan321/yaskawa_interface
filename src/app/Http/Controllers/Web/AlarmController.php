@@ -80,7 +80,7 @@ class AlarmController extends BaseRmsWebController
             // Overall active count within chosen robots, regardless of status/search filter.
             'activeEventCount' => $activeCountQuery->count(),
             'filter' => $filter,
-            'parsingNote' => 'Raw SDK alarm snapshots are not automatically parsed or verified alarm events.',
+            'parsingNote' => 'Alarm readings are not automatically treated as verified Controller Alarm Events.',
         ]);
     }
 }

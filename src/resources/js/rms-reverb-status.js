@@ -22,7 +22,7 @@ export function initRmsReverbStatus(Echo) {
     indicator.className = 'rms-live-indicator rms-reverb-indicator';
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
-    indicator.setAttribute('title', 'Status koneksi WebSocket browser ke Laravel Reverb; bukan status controller robot.');
+    indicator.setAttribute('title', 'Status pembaruan langsung pada dashboard; bukan status controller robot.');
     toolbar.prepend(indicator);
 
     const banner = document.createElement('div');
@@ -44,11 +44,11 @@ export function initRmsReverbStatus(Echo) {
         current = state;
         const browserOffline = !navigator.onLine;
         const states = {
-            connecting: ['REVERB CONNECTING', 'connecting'],
-            connected: ['REVERB CONNECTED', 'connected'],
-            reconnecting: ['REVERB RECONNECTING', 'fallback'],
-            offline: [browserOffline ? 'NETWORK OFFLINE' : 'REVERB OFFLINE', 'error'],
-            disabled: ['REVERB NOT CONFIGURED', 'error'],
+            connecting: ['LIVE UPDATE CONNECTING', 'connecting'],
+            connected: ['LIVE UPDATE ACTIVE', 'connected'],
+            reconnecting: ['LIVE UPDATE RECONNECTING', 'fallback'],
+            offline: [browserOffline ? 'NETWORK OFFLINE' : 'LIVE UPDATE OFFLINE', 'error'],
+            disabled: ['LIVE UPDATE NOT CONFIGURED', 'error'],
         };
         const [label, color] = states[state] || states.offline;
         indicator.textContent = label;
@@ -58,13 +58,13 @@ export function initRmsReverbStatus(Echo) {
             headingText.textContent = browserOffline
                 ? 'Koneksi internet/jaringan browser terputus. '
                 : state === 'disabled'
-                    ? 'Konfigurasi Reverb belum lengkap. '
-                    : 'Koneksi Laravel Reverb tidak tersedia. ';
+                    ? 'Live Update belum dikonfigurasi. '
+                    : 'Live Update sementara tidak tersedia. ';
             detailText.textContent = livePages
-                ? 'Dashboard menggunakan polling JSON sebagai cadangan; status robot tetap mengikuti timestamp telemetry, bukan status Reverb. '
-                : 'Pembaruan langsung melalui WebSocket sedang tidak tersedia. ';
-            if (note === 'not-configured') detailText.textContent += 'Periksa REVERB_APP_KEY dan konfigurasi Live RMS.';
-            else detailText.textContent += 'Periksa service reverb_yaskawa dan jalur WebSocket /app/. Sistem akan mencoba tersambung kembali.';
+                ? 'Dashboard tetap memperbarui data secara berkala. Status robot mengikuti waktu telemetry terakhir. '
+                : 'Pembaruan langsung pada halaman ini sedang tidak tersedia. ';
+            if (note === 'not-configured') detailText.textContent += 'Hubungi administrator sistem untuk mengaktifkan Live Update.';
+            else detailText.textContent += 'Sistem akan mencoba tersambung kembali secara otomatis.';
         }
     }
 

@@ -10,12 +10,14 @@
   <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/live.css') }}">
-  <script src="{{ asset('rms/js/dashboard.js') }}" defer></script>
+  @stack('styles')
+  <script src="{{ asset('rms/js/dashboard.js') }}?v=20261015-2315" defer></script>
+  <script src="{{ asset('rms/js/rms-clock.js') }}?v=20261015-2315" defer></script>
   @if(config('rms_live.enabled', false))
     @vite('resources/js/app.js')
   @endif
   @if(request()->routeIs('rms.logs.*'))
-    <script src="{{ asset('rms/js/logs.js') }}" defer></script>
+    <script src="{{ asset('rms/js/logs.js') }}?v=20261015-2315" defer></script>
   @endif
 </head>
 <body>
@@ -35,7 +37,7 @@
     ['route' => 'rms.features.index', 'label' => 'Status fitur', 'symbol' => '▧'],
   ];
 @endphp
-<div class="rms-app" data-rms-page="{{ Route::currentRouteName() }}" data-rms-reverb-monitor-enabled="{{ config('rms_live.enabled', false) ? '1' : '0' }}" data-rms-live-enabled="{{ config('rms_live.enabled', false) && request()->routeIs('rms.overview', 'rms.robots.index', 'rms.robots.show', 'rms.robots.cockpit') ? '1' : '0' }}" data-rms-live-endpoint="{{ route('rms.live.snapshot') }}" data-rms-live-key="{{ config('rms_live.enabled', false) ? config('rms_live.public_app_key') : '' }}" data-rms-stale-seconds="{{ config('rms_live.stale_seconds', 30) }}" data-rms-reconcile-seconds="{{ config('rms_live.reconcile_seconds', 20) }}" data-rms-fallback-seconds="{{ config('rms_live.fallback_seconds', 4) }}">
+<div class="rms-app" data-rms-page="{{ Route::currentRouteName() }}" data-rms-server-time="{{ now()->toIso8601String() }}" data-rms-reverb-monitor-enabled="{{ config('rms_live.enabled', false) ? '1' : '0' }}" data-rms-live-enabled="{{ config('rms_live.enabled', false) && request()->routeIs('rms.overview', 'rms.robots.index', 'rms.robots.show', 'rms.robots.cockpit') ? '1' : '0' }}" data-rms-live-endpoint="{{ route('rms.live.snapshot') }}" data-rms-live-key="{{ config('rms_live.enabled', false) ? config('rms_live.public_app_key') : '' }}" data-rms-stale-seconds="{{ config('rms_live.stale_seconds', 30) }}" data-rms-reconcile-seconds="{{ config('rms_live.reconcile_seconds', 20) }}" data-rms-fallback-seconds="{{ config('rms_live.fallback_seconds', 4) }}">
   <aside class="sidebar" id="rms-sidebar" aria-label="Navigasi RMS">
     <a class="brand" href="{{ route('rms.overview') }}"><span class="brandmark">R</span><span><span class="brand-name">RMS<span class="brand-dot">.</span></span><small>YASKAWA ROBOT HEALTH</small></span></a>
     <div class="workspace"><div class="workspace-icon">▤</div><div><strong>Equipment health</strong><p>Yaskawa · Monitoring</p></div></div>
@@ -49,7 +51,7 @@
       @endforeach
     </nav>
     <div class="sidebar-bottom">
-      <div class="collector"><strong class="collector-name"><span class="dot"></span>RMS DATABASE</strong><p>PostgreSQL 16 · Laravel</p><span class="collector-hint">Status koneksi tidak sama dengan status gerak robot</span></div>
+      <div class="collector"><strong class="collector-name"><span class="dot"></span>RMS MONITORING</strong><p>Equipment health data</p><span class="collector-hint">Status koneksi tidak sama dengan status gerak robot</span></div>
       <div class="sidebar-foot">RMS · YASKAWA <span style="float:right">WEB</span></div>
     </div>
   </aside>
@@ -58,15 +60,15 @@
       <div class="flex gap"><button class="icon-btn mobile-menu" id="rms-menu-button" aria-label="Buka navigasi" aria-expanded="false" type="button">☰</button><span class="breadcrumb">RMS / <strong>{{ $title ?? 'Monitoring' }}</strong></span></div>
       <div class="top-actions">
         @unless(config('rms_live.enabled', false))
-          <span class="rms-live-indicator" data-state="fallback" title="Mode Live RMS belum diaktifkan. Status server Reverb belum dimonitor.">LIVE MODE OFF</span>
+          <span class="rms-live-indicator" data-state="fallback" title="Pembaruan langsung belum diaktifkan; halaman tetap dapat menampilkan data yang tersimpan.">LIVE UPDATE OFF</span>
         @endunless
-        <span class="source-label"><span class="dot"></span>POSTGRESQL DATA</span>
+        <span class="source-label"><span class="dot"></span>MONITORING DATA</span>
         <span class="account-name">RMS Monitoring</span>
       </div>
     </header>
     <main id="main" class="main" tabindex="-1">
-      <div class="page-heading"><div><div class="eyebrow">RMS / YASKAWA EQUIPMENT HEALTH</div><h1>@yield('heading', $title ?? 'Monitoring')</h1><p class="subtitle">@yield('subtitle', 'Data dari backend Laravel dan PostgreSQL — bukan simulasi.')</p></div>
-        <div class="rms-toolbar"><span class="rms-last-update" id="rms-last-update" title="Waktu render server">Server: {{ now()->timezone('Asia/Jakarta')->format('d M Y H:i:s') }} WIB</span><button type="button" class="btn rms-refresh" id="rms-refresh-button" aria-label="Muat ulang data">↻ Refresh</button></div>
+      <div class="page-heading"><div><div class="eyebrow">RMS / YASKAWA EQUIPMENT HEALTH</div><h1>@yield('heading', $title ?? 'Monitoring')</h1><p class="subtitle">@yield('subtitle', 'Equipment monitoring data — read-only display.')</p></div>
+        <div class="rms-toolbar"><span class="rms-clock" id="rms-clock" title="Waktu RMS dalam zona Asia/Jakarta">Waktu sekarang: {{ now()->timezone('Asia/Jakarta')->format('d M Y H:i:s') }} WIB</span><span class="rms-last-update" id="rms-last-update" title="Waktu monitoring data terakhir diperiksa">Data diperiksa: {{ now()->timezone('Asia/Jakarta')->format('d M Y H:i:s') }} WIB</span><button type="button" class="btn rms-refresh" id="rms-refresh-button" aria-label="Muat ulang data">↻ Refresh</button></div>
       </div>
       <div id="rms-refresh-message" class="rms-refresh-message" role="status" aria-live="polite"></div>
       <section id="rms-dynamic-content" data-rms-live-region data-rms-refresh="@yield('auto_refresh', 'off')">

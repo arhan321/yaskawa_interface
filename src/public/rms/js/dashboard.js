@@ -32,13 +32,13 @@
         signal: controller.signal
       });
       if (!response.ok || response.redirected || !response.headers.get('content-type')?.includes('text/html')) {
-        throw new Error(response.status === 401 || response.status === 403 || response.redirected ? 'Sesi login telah berakhir atau akses ditolak.' : `Server HTTP ${response.status}`);
+        throw new Error(response.status === 401 || response.status === 403 || response.redirected ? 'Sesi login telah berakhir atau akses ditolak.' : 'Layanan monitoring sedang tidak tersedia.');
       }
       const html = await response.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const next = doc.getElementById('rms-dynamic-content');
       const current = document.getElementById('rms-dynamic-content');
-      if (!next || !current) throw new Error('Response bukan halaman RMS yang valid.');
+      if (!next || !current) throw new Error('Data pembaruan tidak dapat dibaca.');
       // Avoid disrupting keyboard focus while user is typing in a filter.
       if (!current.contains(document.activeElement) || manual) {
         current.replaceWith(document.importNode(next, true));
@@ -46,10 +46,10 @@
       const nextTime = doc.getElementById('rms-last-update');
       const currentTime = document.getElementById('rms-last-update');
       if (nextTime && currentTime) currentTime.textContent = nextTime.textContent;
-      if (lastError || manual) message.textContent = 'Data diperbarui dari Laravel.';
+      if (lastError || manual) message.textContent = 'Monitoring data berhasil diperbarui.';
       lastError = '';
     } catch (err) {
-      const detail = err?.name === 'AbortError' ? 'Request melewati batas waktu.' : String(err.message || err);
+      const detail = err?.name === 'AbortError' ? 'Pembaruan melewati batas waktu.' : String(err.message || err);
       if (lastError !== detail || manual) message.textContent = `Pembaruan gagal: ${detail} Data terakhir tetap ditampilkan.`;
       lastError = detail;
     } finally {

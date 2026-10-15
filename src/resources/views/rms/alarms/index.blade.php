@@ -1,6 +1,6 @@
 @extends('rms.layouts.app')
 @section('heading', 'Alarm center')
-@section('subtitle', 'Alarm event terstruktur dan raw snapshots dari PostgreSQL — status pembacaan dijaga terpisah.')
+@section('subtitle', 'Controller Alarm Events dan riwayat pembacaan alarm — status pembacaan ditampilkan terpisah.')
 @section('auto_refresh', '30')
 @section('content')
 
@@ -42,10 +42,10 @@
     'description' => count($filter['robot_ids']) ? 'Dari robot yang dipilih' : 'Dari seluruh robot'
   ])
   @include('rms.partials.metric', [
-    'label' => 'Raw alarm snapshots',
+    'label' => 'Alarm reading history',
     'value' => $snapshots->count(),
     'unit' => 'terbaru',
-    'description' => 'Maks. 30 pembacaan SDK sesuai robot terpilih'
+    'description' => 'Maks. 30 pembacaan controller sesuai robot terpilih'
   ])
 </div>
 
@@ -85,7 +85,7 @@
               </label>
             @endforeach
           </div>
-          <p class="rms-alarm-robot-hint">Tidak mencentang robot = tampilkan semua. Pilih beberapa robot untuk membatasi event dan snapshot.</p>
+          <p class="rms-alarm-robot-hint">Tidak mencentang robot = tampilkan semua. Pilih beberapa robot untuk membatasi event dan riwayat pembacaan.</p>
           <button type="button" class="btn rms-alarm-robot-done" data-alarm-picker-action="done">Selesai memilih</button>
         </div>
       </details>
@@ -114,9 +114,9 @@
 </div>
 
 <section class="panel rms-section-spaced">
-  <div class="panel-header"><h2>Structured alarm events</h2><span class="rms-muted-small">{{ $events->total() }} record</span></div>
+  <div class="panel-header"><h2>Identified Controller Alarm Events</h2><span class="rms-muted-small">{{ $events->total() }} record</span></div>
   @if($events->isEmpty())
-    @include('rms.partials.no-data', ['message'=>'Belum ada alarm event pada filter yang dipilih. Raw SDK tidak otomatis berarti nol alarm.'])
+    @include('rms.partials.no-data', ['message'=>'Belum ada Alarm Event pada filter yang dipilih. Tidak adanya event teridentifikasi tidak otomatis berarti controller bebas alarm.'])
   @else
     <div class="table-wrap">
       <table class="data-table">
@@ -140,10 +140,10 @@
 </section>
 
 <section class="panel rms-section-spaced">
-  <div class="panel-header"><div><h2>Raw active-alarm snapshots</h2><p>Untuk validasi parser atau investigasi error pembacaan</p></div></div>
+  <div class="panel-header"><div><h2>Active Alarm Reading History</h2><p>Untuk mengidentifikasi Controller Alarm dan gangguan pembacaan</p></div></div>
   <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>Robot</th><th>Sample (WIB)</th><th>Read status</th><th>Active count</th><th>SDK text</th></tr></thead>
+      <thead><tr><th>Robot</th><th>Sample (WIB)</th><th>Read Status</th><th>Active Count</th><th>Controller Alarm Text</th></tr></thead>
       <tbody>
         @forelse($snapshots as $s)
           <tr>
@@ -154,7 +154,7 @@
             <td class="rms-raw">{{ \Illuminate\Support\Str::limit($s->sdk_text ?: '—', 150) }}</td>
           </tr>
         @empty
-          <tr><td colspan="5">Belum ada alarm snapshot untuk pilihan robot tersebut</td></tr>
+          <tr><td colspan="5">Belum ada riwayat pembacaan alarm untuk pilihan robot tersebut</td></tr>
         @endforelse
       </tbody>
     </table>
