@@ -29,3 +29,119 @@
 .pm-card-details .pm-form{padding:13px}
 .pm-submit{width:100%;text-align:center;justify-content:center}
 @media(max-width:730px){.pm-form-grid{grid-template-columns:1fr}.pm-wide{grid-column:auto}}
+
+/* ================================================================
+   UPDATE 15 OCT 2026 - ONLY THE "TAMBAH JADWAL MAINTENANCE" BUTTON
+   Blade markup remains unchanged. Existing forms / routes / DB untouched.
+   The entire native <summary> is clickable and keyboard accessible.
+   ================================================================ */
+.pm-new-plan{
+  border:1px solid #b9ddc9;
+  background:linear-gradient(110deg,#f0faf4 0%,#fbfefc 68%,#ecf7f0 100%);
+  border-radius:15px;
+  box-shadow:0 3px 12px rgba(27,91,58,.045);
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+.pm-new-plan:hover{
+  border-color:#83bda0;
+  box-shadow:0 6px 20px rgba(22,95,65,.09);
+}
+.pm-new-plan>summary{
+  min-height:96px;
+  padding:19px 23px;
+  gap:16px;
+  background:transparent;
+  color:#203c32;
+  line-height:1.4;
+}
+.pm-new-plan>summary:hover{
+  background:rgba(214,240,223,.28);
+}
+.pm-new-plan>summary:focus-visible{
+  outline:3px solid #65ac8e;
+  outline-offset:-5px;
+  border-radius:13px;
+}
+.pm-new-plan>summary .pm-plus{
+  flex:0 0 56px;
+  width:56px;
+  height:56px;
+  border-radius:13px;
+  color:#fff;
+  background:linear-gradient(145deg,#309771,#216d55);
+  box-shadow:0 4px 10px rgba(27,110,79,.15);
+  font-size:35px;
+  font-weight:400;
+  line-height:1;
+}
+.pm-new-plan>summary>span:nth-child(2){
+  flex:1 1 270px;
+  min-width:0;
+}
+.pm-new-plan>summary strong{
+  display:block;
+  font-size:17px;
+  font-weight:750;
+  letter-spacing:-.3px;
+  line-height:1.35;
+  color:#173a2d;
+}
+.pm-new-plan>summary small{
+  margin-top:5px;
+  color:#607c6b;
+  font-size:12px;
+  font-weight:400;
+  line-height:1.55;
+}
+/* Visually clear call-to-action; this is part of <summary>, NOT another button. */
+.pm-new-plan>summary::after{
+  content:"Buka formulir  →";
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  margin-left:auto;
+  padding:11px 16px;
+  min-height:40px;
+  border-radius:10px;
+  background:#237a5b;
+  color:#fff;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.3;
+  white-space:nowrap;
+  box-shadow:0 3px 8px rgba(27,110,79,.12);
+  transition:background .16s ease,transform .16s ease;
+}
+.pm-new-plan>summary:hover::after{
+  background:#185b43;
+  transform:translateY(-1px);
+}
+.pm-new-plan[open]{
+  border-color:#98cdb0;
+  background:#fff;
+}
+.pm-new-plan[open]>summary{
+  background:#f0f8f3;
+  border-bottom:1px solid #dcebe1;
+}
+.pm-new-plan[open]>summary::after{
+  content:"Tutup formulir  ↑";
+  color:#24664d;
+  background:#fff;
+  box-shadow:inset 0 0 0 1px #b6d9c4;
+}
+.pm-new-plan[open]>summary:hover::after{
+  background:#e9f5ed;
+}
+@media(max-width:730px){
+  .pm-new-plan>summary{padding:17px;gap:12px;flex-wrap:wrap;min-height:unset}
+  .pm-new-plan>summary .pm-plus{width:46px;height:46px;flex-basis:46px;font-size:30px}
+  .pm-new-plan>summary strong{font-size:15px}
+  .pm-new-plan>summary small{font-size:11px}
+  .pm-new-plan>summary::after{flex:1 1 100%;margin:4px 0 0;min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){
+  .pm-new-plan,.pm-new-plan>summary::after{transition:none}
+  .pm-new-plan>summary:hover::after{transform:none}
+}
