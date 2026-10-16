@@ -39,7 +39,7 @@
 @endphp
 <div class="rms-app" data-rms-page="{{ Route::currentRouteName() }}" data-rms-server-time="{{ now()->toIso8601String() }}" data-rms-reverb-monitor-enabled="{{ config('rms_live.enabled', false) ? '1' : '0' }}" data-rms-live-enabled="{{ config('rms_live.enabled', false) && request()->routeIs('rms.overview', 'rms.robots.index', 'rms.robots.show', 'rms.robots.cockpit') ? '1' : '0' }}" data-rms-live-endpoint="{{ route('rms.live.snapshot') }}" data-rms-live-key="{{ config('rms_live.enabled', false) ? config('rms_live.public_app_key') : '' }}" data-rms-stale-seconds="{{ config('rms_live.stale_seconds', 30) }}" data-rms-reconcile-seconds="{{ config('rms_live.reconcile_seconds', 20) }}" data-rms-fallback-seconds="{{ config('rms_live.fallback_seconds', 4) }}">
   <aside class="sidebar" id="rms-sidebar" aria-label="Navigasi RMS">
-    <a class="brand" href="{{ route('rms.overview') }}"><span class="brandmark">R</span><span><span class="brand-name">RMS<span class="brand-dot">.</span></span><small>YASKAWA ROBOT HEALTH</small></span></a>
+    <a class="brand" href="{{ route('rms.overview') }}"><span class="brandmark" aria-hidden="true"><img class="brand-logo" src="{{ asset('rms/images/daihatsu-symbol.svg') }}" alt=""></span><span><span class="brand-name">RMS<span class="brand-dot">.</span></span><small>YASKAWA ROBOT HEALTH</small></span></a>
     <div class="workspace"><div class="workspace-icon">▤</div><div><strong>Equipment health</strong><p>Yaskawa · Monitoring</p></div></div>
     <nav class="sidebar-scroll">
       <div class="nav-label">WORKSPACE</div>
