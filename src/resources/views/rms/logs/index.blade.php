@@ -123,7 +123,8 @@
     <label class="rms-logs-field">
       <span>Filter waktu</span>
       <select name="preset" class="input" id="rms-logs-preset">
-        <option value="shift_pagi" @selected($filters['preset'] === 'shift_pagi')>Shift normal · 07:15–16:00</option>
+        <option value="shift_pagi" @selected($filters['preset'] === 'shift_pagi')>Shift 1 · 07:15–16:00</option>
+        <option value="shift_2" @selected($filters['preset'] === 'shift_2')>Shift 2 (malam) · 21:00–05:45</option>
         <option value="full_day" @selected($filters['preset'] === 'full_day')>Satu hari · 00:00–23:59</option>
         <option value="custom" @selected($filters['preset'] === 'custom')>Rentang tanggal dan jam manual</option>
       </select>
@@ -156,7 +157,7 @@
       <a class="btn" href="{{ route('rms.logs.index') }}">Reset</a>
     </div>
   </form>
-  <div class="rms-logs-note">Rentang maksimal 7 hari. Batas jam akhir mencakup detik terakhir pada menit tersebut. Pengolahan waktu menggunakan Asia/Jakarta (WIB).</div>
+  <div class="rms-logs-note">Tanggal Shift 2 adalah tanggal mulai: pukul 21:00 pada tanggal terpilih sampai 05:45 pagi hari berikutnya. Rentang maksimal 7 hari. Batas jam akhir mencakup detik terakhir pada menit tersebut. Pengolahan waktu menggunakan Asia/Jakarta (WIB).</div>
 </section>
 
 <section class="panel rms-logs-results" aria-label="Hasil log robot">

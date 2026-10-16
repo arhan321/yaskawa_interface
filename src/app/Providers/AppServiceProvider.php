@@ -43,5 +43,6 @@ class AppServiceProvider extends ServiceProvider
         ] as $model) {
             $model::observe(RmsLiveObserver::class);
         }
+        // \Illuminate\Support\Facades\URL::forceScheme('https');
     }
 }

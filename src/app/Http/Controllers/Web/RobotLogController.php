@@ -189,7 +189,7 @@ final class RobotLogController extends Controller
             'types' => ['sometimes', 'array', 'max:8'],
             'types.*' => ['required', 'string', 'distinct', Rule::in(array_keys(self::SOURCES))],
             'type' => ['nullable', 'string', Rule::in(array_merge(['all', 'events'], array_keys(self::SOURCES)))],
-            'preset' => ['nullable', Rule::in(['shift_pagi', 'full_day', 'custom'])],
+            'preset' => ['nullable', Rule::in(['shift_pagi', 'shift_2', 'full_day', 'custom'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'date_format:Y-m-d\\TH:i'],
             'to' => ['nullable', 'date_format:Y-m-d\\TH:i'],
@@ -208,8 +208,21 @@ final class RobotLogController extends Controller
             $fromLocal = CarbonImmutable::createFromFormat('!Y-m-d\\TH:i', $v['from'], self::TZ);
             $toLocal = CarbonImmutable::createFromFormat('!Y-m-d\\TH:i', $v['to'], self::TZ);
         } else {
-            $fromLocal = CarbonImmutable::parse($day . ($preset === 'shift_pagi' ? ' 07:15:00' : ' 00:00:00'), self::TZ);
-            $toLocal = CarbonImmutable::parse($day . ($preset === 'shift_pagi' ? ' 16:00:00' : ' 23:59:00'), self::TZ);
+            [$fromLocal, $toLocal] = match ($preset) {
+                'shift_pagi' => [
+                    CarbonImmutable::parse($day . ' 07:15:00', self::TZ),
+                    CarbonImmutable::parse($day . ' 16:00:00', self::TZ),
+                ],
+                // Shift 2 starts on the selected date and ends the following morning.
+                'shift_2' => [
+                    CarbonImmutable::parse($day . ' 21:00:00', self::TZ),
+                    CarbonImmutable::parse($day . ' 05:45:00', self::TZ)->addDay(),
+                ],
+                default => [
+                    CarbonImmutable::parse($day . ' 00:00:00', self::TZ),
+                    CarbonImmutable::parse($day . ' 23:59:00', self::TZ),
+                ],
+            };
         }
 
         if ($fromLocal === false || $toLocal === false || $fromLocal->greaterThan($toLocal)) {
