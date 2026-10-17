@@ -8,6 +8,7 @@ use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
 use App\Models\RobotAlarmSnapshot;
 use App\Services\Rms\AlarmSnapshotProcessor;
+use App\Services\Rms\AlarmTextParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,9 +38,26 @@ class AlarmController extends BaseRmsController
         return response()->json($query->orderByDesc('sampled_at')->paginate($filters['per_page']??25));
     }
 
-    public function latestSnapshot(Robot $robot): JsonResponse
+    public function latestSnapshot(Robot $robot, AlarmTextParser $parser): JsonResponse
     {
-        return response()->json(['data'=>$robot->alarmSnapshots()->orderByDesc('sampled_at')->first()]);
+        $snapshot = $robot->alarmSnapshots()->orderByDesc('sampled_at')->first();
+        $parsed = $snapshot && $snapshot->read_ok
+            ? $parser->parse($snapshot->sdk_text)
+            : ['recognized'=>false,'reported_count'=>null,'complete'=>false,'alarms'=>[]];
+
+        return response()->json([
+            'data' => $snapshot,
+            // Read-only preview. Use rms:dojo-backfill --apply to persist old events.
+            'parsing_preview' => [
+                'state' => !$snapshot || !$snapshot->read_ok ? 'read_failed'
+                    : (!$parsed['recognized'] ? 'unrecognized' : ($parsed['complete'] ? 'complete' : 'partial')),
+                'reported_count' => $parsed['recognized'] ? $parsed['reported_count'] : null,
+                'identified_count' => $parsed['recognized'] ? count($parsed['alarms']) : null,
+                'complete' => $parsed['recognized'] ? $parsed['complete'] : false,
+                'alarms' => $parsed['recognized'] ? $parsed['alarms'] : [],
+                'persisted' => $snapshot?->parsed_alarms !== null,
+            ],
+        ]);
     }
 
     public function storeSnapshot(Request $request, AlarmSnapshotProcessor $processor): JsonResponse
@@ -54,8 +72,21 @@ class AlarmController extends BaseRmsController
             // Incoming client-derived fields are deliberately not trusted.
             'active_alarm_count'=>['nullable','integer','min:0'],
             'parsed_alarms'=>['nullable','array'],
+            'raw_payload'=>['nullable','array'],
+            'simulated'=>['sometimes','boolean'],
         ]);
-        unset($data['active_alarm_count'],$data['parsed_alarms']);
+        if ($error = $this->timestampTimezoneError($data, ['sampled_at'])) {
+            return $error;
+        }
+        $robot = Robot::query()->findOrFail($data['robot_id']);
+        $rawPayload = is_array($data['raw_payload'] ?? null) ? $data['raw_payload'] : [];
+        $simulated = ($data['simulated'] ?? false) === true || ($rawPayload['simulated'] ?? false) === true;
+        unset($data['simulated'], $data['raw_payload'], $data['active_alarm_count'], $data['parsed_alarms']);
+        if ($simulated && !str_starts_with($robot->robot_code, 'DEMO_')) {
+            return response()->json(['message' => 'Simulated alarm data cannot use a physical robot ID'], 422);
+        }
+        $rawPayload['simulated'] = $simulated;
+        $data['raw_payload'] = $rawPayload;
         if(!$data['read_ok']) $data['sdk_text']=null;
         $key=['robot_id'=>$data['robot_id'],'sampled_at'=>$data['sampled_at']];
         $snapshot=RobotAlarmSnapshot::firstOrCreate($key,$data);

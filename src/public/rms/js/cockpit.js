@@ -277,9 +277,12 @@
       const small = metrics[3].parentElement?.querySelector('small');
       if (small) {
         const raw = payload.alarm_raw;
-        small.textContent = raw?.reported_count === null || raw?.reported_count === undefined
+        const base = raw?.reported_count === null || raw?.reported_count === undefined
           ? 'Controller Alarm summary belum tersedia'
           : `Controller reported: ${raw.reported_count} · RMS identified: ${raw.identified_count ?? 0}`;
+        const quality = raw?.parse_state === 'partial' ? ' · PARTIAL DETAILS' :
+          raw?.parse_state === 'unrecognized' ? ' · FORMAT UNRECOGNIZED' : '';
+        small.textContent = base + quality;
       }
     }
     // Don't replace the last pill: rms-live.js also updates that same element.
@@ -384,7 +387,16 @@
     if (fields[3]) fields[3].textContent = state
       ? `Mode ${state.control_mode ?? '?'} · RUN ${state.running === null ? '?' : state.running ? 'ON' : 'OFF'} · SERVO ${state.servo_on === null ? '?' : state.servo_on ? 'ON' : 'OFF'}`
       : 'Current controller state unavailable';
-    if (fields[4]) fields[4].textContent = 'Job/I-O monitoring belum tersedia';
+    if (fields[4]) {
+      const job = payload.job_evidence;
+      if (job?.name) {
+        fields[4].textContent = `Job: ${job.name} (candidate, unverified) · I/O belum tersedia`;
+      } else if (job?.raw_available) {
+        fields[4].textContent = 'Job raw tersedia, nama belum terbaca · I/O belum tersedia';
+      } else {
+        fields[4].textContent = 'Nama job belum berhasil dibaca collector · I/O belum tersedia';
+      }
+    }
     const lastUpdate = one('#rms-last-update');
     const timestamp = Date.parse(payload.server_time);
     if (lastUpdate && Number.isFinite(timestamp)) {

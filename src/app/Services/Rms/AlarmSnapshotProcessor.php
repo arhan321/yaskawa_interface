@@ -20,6 +20,7 @@ final class AlarmSnapshotProcessor
     public function process(RobotAlarmSnapshot $snapshot): array
     {
         if (!$snapshot->read_ok) return ['state'=>'read_failed'];
+        if (($snapshot->raw_payload['simulated'] ?? false) === true) return ['state'=>'simulated_ignored'];
         $result = $this->parser->parse($snapshot->sdk_text);
         if (!$result['recognized']) return ['state'=>'raw_unrecognized'];
 

@@ -30,6 +30,9 @@ class ConnectionController extends BaseRmsController
             'occurred_at'=>['required','date'],
             'raw_payload'=>['nullable','array'],
         ]);
+        if ($error = $this->timestampTimezoneError($data, ['occurred_at'])) {
+            return $error;
+        }
         $registered=Robot::query()->findOrFail($data['robot_id']);
         if (($data['raw_payload']['simulated']??false) === true &&
             !str_starts_with($registered->robot_code,'DEMO_')) {

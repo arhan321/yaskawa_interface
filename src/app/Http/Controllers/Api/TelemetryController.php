@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Robot;
 use App\Models\RobotTelemetrySample;
+use App\Services\Rms\JobTextParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +26,7 @@ class TelemetryController extends BaseRmsController
         return response()->json(['data'=>$robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first()]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, JobTextParser $jobParser): JsonResponse
     {
         $rules=[
             'robot_id'=>['required','integer','exists:robots,id'],
@@ -52,6 +53,9 @@ class TelemetryController extends BaseRmsController
             $rules['torque_axes.'.$axis]=['sometimes','nullable','numeric'];
         }
         $data=$request->validate($rules);
+        if ($error = $this->timestampTimezoneError($data, ['sampled_at', 'position_sampled_at', 'torque_sampled_at'])) {
+            return $error;
+        }
         $robot=Robot::query()->findOrFail($data['robot_id']);
         if(($data['raw_payload']['simulated']??false)===true &&
             !str_starts_with($robot->robot_code,'DEMO_')) {
@@ -66,7 +70,8 @@ class TelemetryController extends BaseRmsController
         if(!$data['position_ok']) $data['position_pulses']=null;
         if(!$data['torque_ok']) $data['torque_axes']=null;
         $data['torque_unit']='sdk_raw';
-        $data['job_name'] = $data['job_name'] ?? data_get($data['raw_payload'] ?? null, 'job.name');
+        $jobEvidence = $jobParser->parse($data['raw_payload'] ?? null, $data['job_name'] ?? null);
+        $data['job_name'] = $jobEvidence['name'];
         if(!empty($data['collector_session_id']) && array_key_exists('sequence',$data) && $data['sequence']!==null){
             $key=['robot_id'=>$data['robot_id'],
                 'collector_session_id'=>$data['collector_session_id'],

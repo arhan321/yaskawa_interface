@@ -40,14 +40,26 @@ class OperatingTimeController extends BaseRmsController
             'value_raw'=>['nullable','string','max:8192'],
             'value_seconds'=>['nullable','integer','min:0'],
             'raw_payload'=>['nullable','array'],
+            'simulated'=>['sometimes','boolean'],
         ]);
+        if ($error = $this->timestampTimezoneError($data, ['sampled_at'])) {
+            return $error;
+        }
+        $robot = Robot::query()->findOrFail($data['robot_id']);
+        $rawPayload = is_array($data['raw_payload'] ?? null) ? $data['raw_payload'] : [];
+        $simulated = ($data['simulated'] ?? false) === true || ($rawPayload['simulated'] ?? false) === true;
+        unset($data['simulated']);
+        if ($simulated && !str_starts_with($robot->robot_code, 'DEMO_')) {
+            return response()->json(['message' => 'Simulated operating-time data cannot use a physical robot ID'], 422);
+        }
         $candidate=($data['read_ok']??false) ? $parser->parse($data['value_raw']??null) : null;
         // Never mark SDK raw text as OEM/pendant-verified by default.
         $trusted=config('rms_evidence.operating_text_verified',false)
             && ($data['time_type']==='ServoPowerOnTimeRobot') && $candidate!==null;
         $data['value_seconds']=$trusted ? $candidate['seconds'] : null;
         if(!$data['read_ok']) $data['value_raw']=null;
-        $raw=is_array($data['raw_payload']??null)?$data['raw_payload']:[];
+        $raw=$rawPayload;
+        $raw['simulated'] = $simulated;
         $raw['parsed_candidate_seconds']=$candidate['seconds']??null;
         $raw['parser_source']=$candidate['source']??null;
         $raw['verified_for_pm']=$trusted;

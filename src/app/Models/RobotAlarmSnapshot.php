@@ -19,6 +19,7 @@ class RobotAlarmSnapshot extends Model
         'sdk_text',
         'active_alarm_count',
         'parsed_alarms',
+        'raw_payload',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class RobotAlarmSnapshot extends Model
             'status_code' => 'integer',
             'active_alarm_count' => 'integer',
             'parsed_alarms' => 'array',
+            'raw_payload' => 'array',
         ];
     }
 
