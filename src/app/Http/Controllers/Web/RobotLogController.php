@@ -64,10 +64,11 @@ final class RobotLogController extends Controller
     public function index(Request $request)
     {
         $filters = $this->filters($request);
-        // Cursor pagination handles a busy telemetry table better than large OFFSET pages.
+        // Numbered navigation needs a total count and a stable page number.
         $page = $this->query($filters)
-            ->cursorPaginate($filters['per_page'])
-            ->withQueryString();
+            ->paginate($filters['per_page'])
+            ->appends($this->queryParams($filters))
+            ->fragment('rms-logs-results');
 
         return view('rms.logs.index', [
             'title' => 'Robot log history',

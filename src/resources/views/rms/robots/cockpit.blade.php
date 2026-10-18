@@ -117,5 +117,5 @@ $axisStateLabels = [
 <script>
 window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
-<script src="{{ asset('rms/js/cockpit.js') }}?v=20261018-0001" defer></script>
+<script src="{{ asset('rms/js/cockpit.js') }}?v=20261018-0002" defer></script>
 @endsection

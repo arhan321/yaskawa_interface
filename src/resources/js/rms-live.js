@@ -2,13 +2,6 @@
 
 const AXES = ['S','L','U','R','B','T'];
 const STATUS_CLASSES = ['connected','offline','stale','unknown','healthy','warning','critical'];
-const COCKPIT_STATUS_LABELS = {
-    unavailable: 'UNAVAILABLE',
-    not_configured: 'NOT CONFIGURED',
-    normal: 'NORMAL',
-    warning: 'WARNING',
-    critical: 'CRITICAL'
-};
 const one = (selector, root = document) => root.querySelector(selector);
 const all = (selector, root = document) => [...root.querySelectorAll(selector)];
 const fmt = (value, digits = 2) => value === null || value === undefined || !Number.isFinite(Number(value))
@@ -142,33 +135,6 @@ function updateDetail(robot) {
     const panels = all('.rms-detail-columns > section.panel');
     applyAxisPanel(panels[0], robot, false); applyAxisPanel(panels[1], robot, true);
 }
-function updateCockpit(robot) {
-    const pill = one('.cp-tags .cp-pill:last-child');
-    if (pill) {
-        pill.textContent = robot.connectivity === 'connected' ? 'TELEMETRY FRESH' : 'TELEMETRY STALE / UNKNOWN';
-        pill.classList.toggle('cp-ok', robot.connectivity === 'connected');
-        pill.classList.toggle('cp-muted', robot.connectivity !== 'connected');
-    }
-    const metrics = all('.cp-metrics > div > strong');
-    if (metrics[0]) metrics[0].textContent = robot.last_sampled_wib ?? 'Belum tersedia';
-    if (metrics[1]) metrics[1].textContent = robot.operating_hours === null ? 'Belum terverifikasi' : `${fmt(robot.operating_hours)} h`;
-    all('.cp-axis-item').forEach((row,i)=>{
-        const ax=AXES[i]; const value=robot.axes[ax]; if (!value) return;
-        const readable=robot.torque_ok;
-        const major=one('.cp-axis-measure strong',row);
-        const detail=one('.cp-axis-measure small',row);
-        const state=one('.cp-state',row);
-        if (major) major.textContent=readable?fmt(value.torque,4):'—';
-        if (detail) detail.textContent=`Motor Torque · Position ${robot.position_ok ? fmt(value.pulse,0) : '—'} pulse`;
-        if (state) {
-            state.className='cp-state cp-'+value.status;
-            state.textContent=COCKPIT_STATUS_LABELS[value.status] || 'STATUS TIDAK DIKETAHUI';
-        }
-    });
-    // Cockpit owns graph rendering and UI state; do not recreate its canvas.
-    window.dispatchEvent(new CustomEvent('rms:cockpit-sample',{detail:robot}));
-}
-
 export function initRmsLive(Echo, sharedEcho = undefined) {
     const root=one('.rms-app');
     const page=currentPage();
@@ -180,14 +146,15 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
     const fallbackSeconds=Number(root.dataset.rmsFallbackSeconds || 4);
     const robotId=robotFromPath();
     const indicator=ensureIndicator();
-    let connected=false, inflight=false, timer=null, latest=null, lastFetch=0, lastHistory={id:null};
+    let connected=false, inflight=false, pending=false, timer=null, latest=null, lastFetch=0, lastHistory={id:null};
     let notifyTimeout=null;
     let serverOffset=0;
     const status = (txt,kind) => {if(indicator){indicator.textContent=txt;indicator.dataset.state=kind;}};
     const fetchUrl=new URL(endpoint,location.origin);
     if(robotId) fetchUrl.searchParams.set('robot_id',String(robotId));
     async function reconcile() {
-        if(inflight || document.hidden) return;
+        if(document.hidden) return;
+        if(inflight) { pending=true; return; }
         inflight=true;
         try {
             const controller=new AbortController();
@@ -210,10 +177,9 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
             }
             if(page==='overview') updateOverview(data);
             if(page==='monitor') updateCards(data.robots,'monitor');
-            if((page==='detail'||page==='cockpit') && data.robots.length){
+            if(page==='detail' && data.robots.length){
                 const robot=data.robots[0];
-                if(page==='detail') {updateDetail(robot);lastHistory=addHistoryRow(robot,lastHistory);}
-                if(page==='cockpit') updateCockpit(robot);
+                updateDetail(robot);lastHistory=addHistoryRow(robot,lastHistory);
             }
             const demo = data.robots.some(r=>r.is_demo);
             status(connected ? (demo?'LIVE UPDATE ACTIVE · DEMO':'LIVE UPDATE ACTIVE') :
@@ -221,7 +187,10 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
         } catch(err) {
             console.warn('[RMS Live] Monitoring update failed:', err);
             status('MONITORING DATA UNAVAILABLE · RETRYING','error');
-        } finally {inflight=false;}
+        } finally {
+            inflight=false;
+            if(pending){pending=false;void reconcile();}
+        }
     }
     function checkAge() {
         if(!latest) return;
@@ -240,7 +209,6 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
             if(page==='overview')updateOverview(latest);
             if(page==='monitor')updateCards(latest.robots,page);
             if(page==='detail')updateDetail(latest.robots[0]);
-            if(page==='cockpit')updateCockpit(latest.robots[0]);
             status('TELEMETRY STALE · WAITING FOR DATA','stale');
         }
     }
@@ -266,6 +234,11 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
         conn.bind('unavailable',()=>{connected=false;status('LIVE UPDATE OFFLINE · AUTO UPDATE ACTIVE','fallback');reconcile();});
         echo.channel('rms.fleet').listen('.rms.robot.changed',event=>{
             if(robotId && Number(event.robot_id)!==robotId) return;
+            if(page==='cockpit') {
+                // Cockpit's dedicated endpoint refreshes metrics and graphs in one request.
+                window.dispatchEvent(new Event('rms:cockpit-changed'));
+                return;
+            }
             if(notifyTimeout===null) notifyTimeout=setTimeout(()=>{notifyTimeout=null;reconcile();},250);
         });
     } catch(e) { status('AUTO UPDATE ACTIVE','fallback'); }

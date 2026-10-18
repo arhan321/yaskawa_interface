@@ -4,8 +4,7 @@
  *
  * - Read-only dashboard. Never communicates with the robot controller.
  * - Initial history comes from Blade; new history/metrics come from Laravel JSON.
- * - Auto-updates every 5 seconds, with faster refresh when the existing
- *   rms-live.js receives a Reverb invalidation event.
+ * - Refreshes immediately on Reverb invalidation, with a 5-second fallback.
  * - Never fabricates torque, position, operating time, alarm or reducer life.
  * - Keeps the original Measurement, Variation, SLURBT and reducer controls.
  */
@@ -79,7 +78,7 @@
     updateStatus.textContent = text;
     updateStatus.classList.toggle('cp-ok', kind === 'ok');
     updateStatus.classList.toggle('cp-muted', kind !== 'ok');
-    updateStatus.title = 'Dashboard memperbarui data monitoring secara berkala; bukan pembacaan langsung dari hardware setiap saat';
+    updateStatus.title = 'Dashboard mengikuti notifikasi data baru dan memeriksa ulang tiap 5 detik; data berasal dari collector';
   }
 
   // ---------- Canvas charts (original Cockpit visualization, retained) ----------
@@ -486,8 +485,15 @@
   function requestSoon() {
     if (document.hidden) return;
     if (loading) { queueRefresh = true; return; }
-    // Throttle bursts produced by multiple ORM events on the same robot.
+    // Throttle focus and periodic checks only; never discard a Reverb signal.
     if (Date.now() - lastRequest < 800) return;
+    void refresh();
+  }
+
+  function requestOnSignal() {
+    if (document.hidden) return;
+    // If an older request is still in flight, reread after it completes.
+    if (loading) { queueRefresh = true; return; }
     void refresh();
   }
 
@@ -537,8 +543,8 @@
     else void refresh();
   }));
 
-  // Existing Laravel Reverb bridge emits this after JSON live snapshot refresh.
-  window.addEventListener('rms:cockpit-sample', requestSoon);
+  // The Reverb bridge sends an invalidation as soon as the ORM write commits.
+  window.addEventListener('rms:cockpit-changed', requestOnSignal);
   window.addEventListener('focus', requestSoon);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) requestSoon();

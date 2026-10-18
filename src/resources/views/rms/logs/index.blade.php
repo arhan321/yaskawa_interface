@@ -160,7 +160,7 @@
   <div class="rms-logs-note">Tanggal Shift 2 adalah tanggal mulai: pukul 21:00 pada tanggal terpilih sampai 05:45 pagi hari berikutnya. Rentang maksimal 7 hari. Batas jam akhir mencakup detik terakhir pada menit tersebut. Pengolahan waktu menggunakan Asia/Jakarta (WIB).</div>
 </section>
 
-<section class="panel rms-logs-results" aria-label="Hasil log robot">
+<section id="rms-logs-results" class="panel rms-logs-results" aria-label="Hasil log robot">
   <div class="rms-logs-results-top">
     <div>
       <h2>Hasil log</h2>
@@ -208,12 +208,48 @@
       </tbody>
     </table>
   </div>
+  @php
+    $lastPage = $page->lastPage();
+    $windowStart = max(1, min($page->currentPage() - 2, $lastPage - 4));
+    $windowEnd = min($lastPage, $windowStart + 4);
+  @endphp
   <div class="rms-logs-pagination">
-    <span>Menampilkan {{ count($entries) }} baris pada halaman ini</span>
-    <div class="rms-logs-pagination-actions">
-      @if($page->previousPageUrl())<a class="btn" href="{{ $page->previousPageUrl() }}">← Sebelumnya</a>@endif
-      @if($page->nextPageUrl())<a class="btn" href="{{ $page->nextPageUrl() }}">Berikutnya →</a>@endif
-    </div>
+    <span>
+      Menampilkan {{ number_format($page->firstItem() ?? 0, 0, ',', '.') }}–{{ number_format($page->lastItem() ?? 0, 0, ',', '.') }}
+      dari {{ number_format($page->total(), 0, ',', '.') }} log
+      · Halaman {{ number_format($page->currentPage(), 0, ',', '.') }} dari {{ number_format($lastPage, 0, ',', '.') }}
+    </span>
+    @if($page->hasPages())
+      <nav class="rms-logs-pagination-actions" aria-label="Navigasi halaman log">
+        @if($page->onFirstPage())
+          <span class="rms-logs-page is-disabled" aria-disabled="true">← Sebelumnya</span>
+        @else
+          <a class="rms-logs-page" href="{{ $page->previousPageUrl() }}" rel="prev">← Sebelumnya</a>
+        @endif
+
+        @if($windowStart > 1)
+          <a class="rms-logs-page" href="{{ $page->url(1) }}" aria-label="Halaman 1">1</a>
+          @if($windowStart > 2)<span class="rms-logs-page-gap" aria-hidden="true">…</span>@endif
+        @endif
+        @for($number = $windowStart; $number <= $windowEnd; $number++)
+          @if($number === $page->currentPage())
+            <span class="rms-logs-page is-current" aria-current="page" aria-label="Halaman {{ $number }}">{{ $number }}</span>
+          @else
+            <a class="rms-logs-page" href="{{ $page->url($number) }}" aria-label="Halaman {{ $number }}">{{ $number }}</a>
+          @endif
+        @endfor
+        @if($windowEnd < $lastPage)
+          @if($windowEnd < $lastPage - 1)<span class="rms-logs-page-gap" aria-hidden="true">…</span>@endif
+          <a class="rms-logs-page" href="{{ $page->url($lastPage) }}" aria-label="Halaman {{ $lastPage }}">{{ $lastPage }}</a>
+        @endif
+
+        @if($page->onLastPage())
+          <span class="rms-logs-page is-disabled" aria-disabled="true">Berikutnya →</span>
+        @else
+          <a class="rms-logs-page" href="{{ $page->nextPageUrl() }}" rel="next">Berikutnya →</a>
+        @endif
+      </nav>
+    @endif
   </div>
   <div class="rms-logs-note">Ekspor Excel dibatasi maksimal 5.000 baris per permintaan agar dashboard tetap ringan. Jika data lebih banyak, laporan memberi penanda DIPOTONG. Sempitkan waktu atau pilih robot tertentu untuk mengekspor sisanya.</div>
 </section>

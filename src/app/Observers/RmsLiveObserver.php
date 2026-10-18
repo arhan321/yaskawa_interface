@@ -7,7 +7,6 @@ namespace App\Observers;
 use App\Events\RmsRobotChanged;
 use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -27,10 +26,10 @@ final class RmsLiveObserver implements ShouldHandleEventsAfterCommit
         $robotId = (int) $model->getAttribute('robot_id');
         if ($robotId < 1) return;
 
-        // Coalesce rapid samples. When one signal is dropped, a subsequent
-        // reconciliation request gets the latest data from PostgreSQL.
+        // Publish each committed ORM change. Suppressing a change for one
+        // second can hide a fresh telemetry sample behind another model's
+        // notification and leave the Cockpit waiting for its fallback poll.
         try {
-            if (!Cache::add('rms-live:signal:robot:'.$robotId, 1, 1)) return;
             event(new RmsRobotChanged($robotId, class_basename($model)));
         } catch (Throwable $e) {
             Log::warning('RMS live notification failed; telemetry remains persisted.', [
