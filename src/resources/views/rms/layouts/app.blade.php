@@ -7,7 +7,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $title ?? 'Dashboard' }} — RMS Yaskawa</title>
   <link rel="stylesheet" href="{{ asset('rms/css/prototype-base.css') }}">
-  <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}">
+  <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}?v=20261018-daihatsu2">
   <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/live.css') }}">
   @stack('styles')
@@ -51,8 +51,9 @@
       @endforeach
     </nav>
     <div class="sidebar-bottom">
-      <div class="collector"><strong class="collector-name"><span class="dot"></span>RMS MONITORING</strong><p>Equipment health data</p><span class="collector-hint">Status koneksi tidak sama dengan status gerak robot</span></div>
-      <div class="sidebar-foot">RMS · YASKAWA <span style="float:right">WEB</span></div>
+      <div class="sidebar-daihatsu">
+        <img class="sidebar-daihatsu-lockup" src="{{ asset('rms/images/daihatsu-sahabatku.png') }}" alt="Logo Daihatsu dan tulisan Daihatsu Sahabatku" width="553" height="283">
+      </div>
     </div>
   </aside>
   <div class="shell">
