@@ -1,5 +1,7 @@
 'use strict';
 
+import { syncTelemetryHistory } from './telemetry-history.js';
+
 const AXES = ['S','L','U','R','B','T'];
 const STATUS_CLASSES = ['connected','offline','stale','unknown','healthy','warning','critical'];
 const one = (selector, root = document) => root.querySelector(selector);
@@ -125,18 +127,6 @@ function applyAxisPanel(panel, robot, isPulse) {
     }
     table.replaceChildren(...AXES.map(ax => makeAxisRow(ax,good ? robot.axes[ax]?.[isPulse?'pulse':'torque'] : null,isPulse)));
 }
-function addHistoryRow(robot, seenHistory) {
-    if (!robot?.sample_id || robot.sample_id === seenHistory.id) return seenHistory;
-    const table = one('.rms-section-spaced .data-table tbody');
-    if (!table) return {id:robot.sample_id};
-    const tr = document.createElement('tr');
-    const cells = [robot.last_sampled_wib ?? '—',robot.position_ok ? 'OK':'FAILED',robot.torque_ok?'OK':'FAILED',
-        '—',fmt(robot.axes.S?.torque,4),fmt(robot.axes.L?.torque,4)];
-    for (const v of cells) { const td=document.createElement('td');td.textContent=v;tr.append(td); }
-    table.prepend(tr);
-    while (table.children.length > 120) table.lastElementChild.remove();
-    return {id:robot.sample_id};
-}
 function updateDetail(robot) {
     const status = all('.rms-detail-header .rms-header-status .rms-badge');
     addBadgeText(status[0], badgeValue(robot), robot.connectivity);
@@ -159,12 +149,13 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
     const fallbackSeconds=Number(root.dataset.rmsFallbackSeconds || 4);
     const robotId=robotFromPath();
     const indicator=ensureIndicator();
-    let connected=false, inflight=false, pending=false, timer=null, latest=null, lastFetch=0, lastHistory={id:null};
+    let connected=false, inflight=false, pending=false, timer=null, latest=null, lastFetch=0;
     let notifyTimeout=null;
     let serverOffset=0;
     const status = (txt,kind) => {if(indicator){indicator.textContent=txt;indicator.dataset.state=kind;}};
     const fetchUrl=new URL(endpoint,location.origin);
     if(robotId) fetchUrl.searchParams.set('robot_id',String(robotId));
+    if(page==='detail') fetchUrl.searchParams.set('include_history','1');
     async function reconcile() {
         if(document.hidden) return;
         if(inflight) { pending=true; return; }
@@ -192,7 +183,8 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
             if(page==='monitor') updateCards(data.robots,'monitor');
             if(page==='detail' && data.robots.length){
                 const robot=data.robots[0];
-                updateDetail(robot);lastHistory=addHistoryRow(robot,lastHistory);
+                updateDetail(robot);
+                syncTelemetryHistory(data.telemetry_history);
             }
             const demo = data.robots.some(r=>r.is_demo);
             status(connected ? (demo?'LIVE UPDATE ACTIVE · DEMO':'LIVE UPDATE ACTIVE') :
@@ -245,7 +237,11 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
         conn.bind('connected',()=>{connected=true;reconcile();});
         conn.bind('disconnected',()=>{connected=false;status('LIVE UPDATE RECONNECTING · AUTO UPDATE ACTIVE','fallback');reconcile();});
         conn.bind('unavailable',()=>{connected=false;status('LIVE UPDATE OFFLINE · AUTO UPDATE ACTIVE','fallback');reconcile();});
-        echo.channel('rms.fleet').listen('.rms.robot.changed',event=>{
+        connected=conn.state==='connected';
+        echo.channel('rms.fleet').subscribed(()=>{
+            // Subscription can finish after the connection's first snapshot.
+            if(page!=='cockpit') reconcile();
+        }).listen('.rms.robot.changed',event=>{
             if(robotId && Number(event.robot_id)!==robotId) return;
             if(page==='cockpit') {
                 // Cockpit's dedicated endpoint refreshes metrics and graphs in one request.

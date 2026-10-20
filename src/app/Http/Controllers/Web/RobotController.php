@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Web;
 use App\Models\Robot;
 use App\Models\RobotController as ControllerModel;
 use App\Services\Rms\RobotReachabilityProbe;
+use App\Services\Rms\TelemetryHistory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class RobotController extends BaseRmsWebController
@@ -181,24 +183,16 @@ class RobotController extends BaseRmsWebController
     }
 
     /** Implicit binding: {robot} maps to numeric robots.id by default. */
-    public function show(Robot $robot): View
+    public function show(Robot $robot, TelemetryHistory $history): View
     {
         $robot->load('controller');
-        $card = $this->robotCards(new \Illuminate\Database\Eloquent\Collection([$robot]))->first();
-
-        // Bound chart size to prevent pulling millions of 1-second samples.
-        $history = $robot->telemetrySamples()
-            ->orderByDesc('sampled_at')
-            ->limit(120)
-            ->get()
-            ->reverse()
-            ->values();
+        $card = $this->robotCards(new Collection([$robot]))->first();
 
         return view('rms.robots.show', [
             'title' => $robot->name,
             'robot' => $robot,
             'card' => $card,
-            'telemetryHistory' => $history,
+            'telemetryHistory' => collect($history->forRobot($robot)),
             'operatingTimeHistory' => $robot->operatingTimeSamples()
                 ->orderByDesc('sampled_at')->limit(25)->get(),
             'alarmSnapshots' => $robot->alarmSnapshots()

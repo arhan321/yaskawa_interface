@@ -18,9 +18,14 @@
  @else @include('rms.partials.no-data',['message'=>'Data PULSE belum masuk atau pembacaan terakhir gagal.']) @endif
  </section>
 </div>
-<section class="panel rms-section-spaced"><div class="panel-header"><div><h2>Telemetry history</h2><p>Maksimal 120 sampel terbaru; tidak ada data simulasi.</p></div><span class="rms-muted-small">{{ $telemetryHistory->count() }} record</span></div>
-@if($telemetryHistory->isEmpty()) @include('rms.partials.no-data')
-@else <div class="table-wrap"><table class="data-table"><thead><tr><th>Time (WIB)</th><th>Position</th><th>Torque</th><th>Reading No.</th><th>Motor Torque S</th><th>Motor Torque L</th></tr></thead><tbody>@foreach($telemetryHistory->reverse() as $t)<tr><td>{{ $t->sampled_at?->timezone('Asia/Jakarta')->format('d M H:i:s.v') }}</td><td>@include('rms.partials.read-status',['ok'=>$t->position_ok])</td><td>@include('rms.partials.read-status',['ok'=>$t->torque_ok])</td><td>{{ $t->sequence ?? '—' }}</td><td>{{ is_array($t->torque_axes) && isset($t->torque_axes['S']) ? $t->torque_axes['S'] : '—' }}</td><td>{{ is_array($t->torque_axes) && isset($t->torque_axes['L']) ? $t->torque_axes['L'] : '—' }}</td></tr>@endforeach</tbody></table></div> @endif
+<section class="panel rms-section-spaced" data-rms-telemetry-history data-rms-robot-id="{{ $robot->id }}"><div class="panel-header"><div><h2>Telemetry history</h2><p>Maksimal 120 sampel terbaru; tidak ada data simulasi.</p></div><span class="rms-muted-small" data-rms-history-count>{{ $telemetryHistory->count() }} record</span></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Time (WIB)</th><th>Position</th><th>Torque</th><th>Reading No.</th><th>Motor Torque S</th><th>Motor Torque L</th></tr></thead><tbody data-rms-history-rows>
+@forelse($telemetryHistory as $t)
+<tr data-rms-telemetry-id="{{ $t['id'] }}"><td>{{ $t['time_wib'] }}</td><td>@include('rms.partials.read-status',['ok'=>$t['position_ok']])</td><td>@include('rms.partials.read-status',['ok'=>$t['torque_ok']])</td><td>{{ $t['sequence'] ?? '—' }}</td><td>{{ $t['torque_s_label'] }}</td><td>{{ $t['torque_l_label'] }}</td></tr>
+@empty
+<tr><td colspan="6">Belum ada data</td></tr>
+@endforelse
+</tbody></table></div>
 </section>
 <div class="two-col rms-section-spaced">
  <section class="panel"><h2>Operating Time History</h2><p class="rms-muted-small">Nilai hanya ditampilkan sebagai jam setelah formatnya diverifikasi.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Type</th><th>Operating Time Value</th></tr></thead><tbody>@forelse($operatingTimeHistory as $t)<tr><td>{{ $t->sampled_at?->timezone('Asia/Jakarta')->format('d M H:i:s') }}</td><td>{{ $t->time_type }}</td><td>{{ $t->value_seconds !== null ? number_format($t->value_seconds / 3600, 2, ',', '.') . ' h' : ($t->value_raw ?: '—') }}</td></tr>@empty<tr><td colspan="3">Belum ada data</td></tr>@endforelse</tbody></table></div></section>

@@ -8,6 +8,7 @@ use App\Models\MaintenanceRecommendation;
 use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
 use App\Models\RobotThresholdRule;
+use App\Services\Rms\TelemetryHistory;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,10 +16,13 @@ use Illuminate\Http\Request;
 /** Same-origin read-only snapshot. Never calls YMConnect or robot commands. */
 final class RmsLiveController extends BaseRmsWebController
 {
-    public function snapshot(Request $request): JsonResponse
+    public function snapshot(Request $request, TelemetryHistory $history): JsonResponse
     {
         abort_unless(config('rms_live.enabled', false), 404);
-        $values = $request->validate(['robot_id' => ['sometimes', 'integer', 'min:1', 'exists:robots,id']]);
+        $values = $request->validate([
+            'robot_id' => ['required_if:include_history,1', 'integer', 'min:1', 'exists:robots,id'],
+            'include_history' => ['sometimes', 'boolean'],
+        ]);
         $registry = isset($values['robot_id'])
             ? new EloquentCollection([Robot::query()->with('controller')->findOrFail($values['robot_id'])])
             : $this->robotRegistry();
@@ -104,6 +108,11 @@ final class RmsLiveController extends BaseRmsWebController
                 'open_recommendations' => MaintenanceRecommendation::query()->whereIn('robot_id', $robotIds)->where('status', 'open')->count(),
             ],
             'robots' => $robots,
+            'telemetry_history' => ($values['include_history'] ?? false) ? [
+                'robot_id' => $registry->first()->id,
+                'limit' => TelemetryHistory::LIMIT,
+                'rows' => $history->forRobot($registry->first()),
+            ] : null,
         ]);
 
         return $response->header('Cache-Control', 'no-store, private')
