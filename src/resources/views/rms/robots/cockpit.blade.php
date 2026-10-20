@@ -33,7 +33,7 @@ $axisStateLabels = [
   </div>
   <div class="cp-metrics">
     <div><span>Last Telemetry</span><strong>{{ $latestTime ?? 'Belum tersedia' }}</strong><small>Waktu Indonesia Barat (WIB)</small></div>
-    <div><span>Servo Operating Hours</span><strong>{{ $operating?->read_ok && $operating->value_seconds !== null ? number_format($operating->value_seconds/3600, 2, ',', '.') . ' h' : 'Belum terverifikasi' }}</strong><small>Ditampilkan sebagai jam setelah format nilai diverifikasi</small></div>
+    <div><span>Servo Operating Hours</span><strong data-rms-operating-status="{{ $operatingDisplay['status'] }}" title="{{ $operatingDisplay['caption'] }}">{{ $operatingDisplay['text'] }}</strong><small data-rms-operating-caption>{{ $operatingDisplay['caption'] }}</small></div>
     <div><span>Open Threshold Events</span><strong>{{ $openEvents->count() }}</strong><small>RMS monitoring event; bukan Controller Alarm</small></div>
     <div><span>Identified Active Alarms</span><strong>{{ $alarms->count() }}</strong><small>Alarm controller yang kode dan statusnya berhasil diidentifikasi</small></div>
   </div>
@@ -117,5 +117,5 @@ $axisStateLabels = [
 <script>
 window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
-<script src="{{ asset('rms/js/cockpit.js') }}?v=20261018-0002" defer></script>
+<script src="{{ asset('rms/js/cockpit.js') }}?v=20261020-operating-hours" defer></script>
 @endsection

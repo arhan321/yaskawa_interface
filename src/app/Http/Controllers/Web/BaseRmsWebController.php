@@ -12,6 +12,7 @@ use App\Models\RobotConnectionEvent;
 use App\Models\RobotHealthAssessment;
 use App\Models\RobotOperatingTimeSample;
 use App\Models\RobotTelemetrySample;
+use App\Services\Rms\OperatingTimeDisplay;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -34,7 +35,7 @@ abstract class BaseRmsWebController extends Controller
      * PostgreSQL DISTINCT ON fetches the newest sample PER robot without
      * loading the full time-series history. $model/$column are internal literals.
      *
-     * @param class-string<Model> $model
+     * @param  class-string<Model>  $model
      */
     protected function latestPerRobot(string $model, Collection $robotIds, string $column, array $equals = []): Collection
     {
@@ -82,9 +83,10 @@ abstract class BaseRmsWebController extends Controller
 
         $staleSeconds = max(5, (int) config('rms.telemetry_stale_seconds', 30));
         $now = now();
+        $timeDisplay = app(OperatingTimeDisplay::class);
 
         return $robots->map(static function (Robot $robot) use (
-            $telemetry, $operating, $alarms, $connections, $health, $activeEvents, $now, $staleSeconds
+            $telemetry, $operating, $alarms, $connections, $health, $activeEvents, $now, $staleSeconds, $timeDisplay
         ): array {
             $sample = $telemetry->get($robot->id);
             $time = $operating->get($robot->id);
@@ -120,6 +122,7 @@ abstract class BaseRmsWebController extends Controller
             $operatingHours = $time !== null && $time->read_ok && $time->value_seconds !== null
                 ? round($time->value_seconds / 3600, 2)
                 : null;
+            $operatingDisplay = $timeDisplay->forSample($time);
 
             return [
                 'robot' => $robot,
@@ -135,6 +138,7 @@ abstract class BaseRmsWebController extends Controller
                 'last_received_at' => $sample?->received_at,
                 'active_alarm_count' => $alarmCount,
                 'operating_hours' => $operatingHours,
+                'operating_display' => $operatingDisplay,
                 'motion_state' => null,
                 'executing_job' => null,
                 'utilization_percent' => null,

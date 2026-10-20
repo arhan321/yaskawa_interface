@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web;
 
+use App\Models\MaintenanceRecommendation;
 use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
-use App\Models\MaintenanceRecommendation;
 use App\Models\RobotThresholdRule;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /** Same-origin read-only snapshot. Never calls YMConnect or robot commands. */
 final class RmsLiveController extends BaseRmsWebController
@@ -45,27 +45,28 @@ final class RmsLiveController extends BaseRmsWebController
             );
             $health = $connected && $healthFresh ? $last->health_status : 'unknown';
             $axes = [];
-            foreach (['S','L','U','R','B','T'] as $axis) {
+            foreach (['S', 'L', 'U', 'R', 'B', 'T'] as $axis) {
                 $raw = $connected && $sample?->torque_ok && $sample->torque_unit === 'sdk_raw'
                     ? ($sample->torque_axes[$axis] ?? null) : null;
-                $value = is_numeric($raw) && is_finite((float) $raw) ? (float)$raw : null;
+                $value = is_numeric($raw) && is_finite((float) $raw) ? (float) $raw : null;
                 $pulse = $connected && $sample?->position_ok ? ($sample->position_pulses[$axis] ?? null) : null;
                 $rule = $rules->get($axis);
                 $validRule = $rule && $rule->isApproved() && $rule->unit === 'sdk_raw';
                 $state = $value === null ? 'unavailable' : ($validRule ? 'normal' : 'not_configured');
                 if ($value !== null && $validRule) {
-                    $state = abs($value) >= (float)$rule->critical_magnitude ? 'critical' :
-                        (abs($value) >= (float)$rule->warning_magnitude ? 'warning' : 'normal');
+                    $state = abs($value) >= (float) $rule->critical_magnitude ? 'critical' :
+                        (abs($value) >= (float) $rule->warning_magnitude ? 'warning' : 'normal');
                 }
                 $axes[$axis] = [
                     'torque' => $value,
-                    'pulse' => is_numeric($pulse) ? (float)$pulse : null,
+                    'pulse' => is_numeric($pulse) ? (float) $pulse : null,
                     'status' => $state,
-                    'warning' => $validRule ? (float)$rule->warning_magnitude : null,
-                    'critical' => $validRule ? (float)$rule->critical_magnitude : null,
+                    'warning' => $validRule ? (float) $rule->warning_magnitude : null,
+                    'critical' => $validRule ? (float) $rule->critical_magnitude : null,
                 ];
             }
             $alarmCount = $connected ? $card['active_alarm_count'] : null;
+
             return [
                 'id' => $robot->id,
                 'code' => $robot->robot_code,
@@ -86,6 +87,7 @@ final class RmsLiveController extends BaseRmsWebController
                 'last_health_at' => $last?->evaluated_at?->toIso8601String(),
                 'alarm_count' => $alarmCount,
                 'operating_hours' => $card['operating_hours'],
+                'operating_display' => $card['operating_display'],
             ];
         })->values();
 
@@ -97,12 +99,13 @@ final class RmsLiveController extends BaseRmsWebController
                 'total' => $robots->count(),
                 'connected' => $robots->where('connectivity', 'connected')->count(),
                 'offline' => $robots->where('connectivity', 'offline')->count(),
-                'stale_or_unknown' => $robots->whereIn('connectivity', ['stale','unknown'])->count(),
+                'stale_or_unknown' => $robots->whereIn('connectivity', ['stale', 'unknown'])->count(),
                 'identified_active_alarms' => RobotAlarmEvent::query()->whereIn('robot_id', $robotIds)->where('status', 'active')->count(),
                 'open_recommendations' => MaintenanceRecommendation::query()->whereIn('robot_id', $robotIds)->where('status', 'open')->count(),
             ],
             'robots' => $robots,
         ]);
+
         return $response->header('Cache-Control', 'no-store, private')
             ->header('X-Content-Type-Options', 'nosniff');
     }

@@ -10,10 +10,10 @@ use App\Models\RobotAlarmEvent;
 use App\Models\RobotReducerMeasurement;
 use App\Models\RobotThresholdEvent;
 use App\Models\RobotThresholdRule;
-use App\Services\Rms\OperatingTimeTextParser;
-use App\Services\Rms\ControllerStateTextReader;
 use App\Services\Rms\AlarmTextParser;
+use App\Services\Rms\ControllerStateTextReader;
 use App\Services\Rms\JobTextParser;
+use App\Services\Rms\OperatingTimeDisplay;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class CockpitLiveController extends Controller
 {
-    public function __invoke(Request $request, Robot $robot, OperatingTimeTextParser $timeParser, ControllerStateTextReader $stateReader, AlarmTextParser $alarmParser, JobTextParser $jobParser): JsonResponse
+    public function __invoke(Request $request, Robot $robot, OperatingTimeDisplay $timeDisplay, ControllerStateTextReader $stateReader, AlarmTextParser $alarmParser, JobTextParser $jobParser): JsonResponse
     {
         $validated = $request->validate(['period' => ['sometimes', 'in:1h,8h,24h']]);
         $period = $validated['period'] ?? '8h';
@@ -58,6 +58,7 @@ final class CockpitLiveController extends Controller
                 $values[$axis] = $row->torque_ok && $row->torque_unit === 'sdk_raw'
                     && is_numeric($value) && is_finite((float) $value) ? (float) $value : null;
             }
+
             return [
                 'time' => CarbonImmutable::parse($row->sampled_at)->timezone('Asia/Jakarta')->format('d/m H:i:s'),
                 'axes' => $values,
@@ -84,7 +85,7 @@ final class CockpitLiveController extends Controller
             $hasTorque = $fresh && $latest->torque_ok && $latest->torque_unit === 'sdk_raw'
                 && is_numeric($raw) && is_finite((float) $raw);
             $approved = $rule && $rule->isApproved() && $rule->unit === 'sdk_raw';
-            $status = !$hasTorque ? 'unavailable' : ($approved ? 'normal' : 'not_configured');
+            $status = ! $hasTorque ? 'unavailable' : ($approved ? 'normal' : 'not_configured');
             if ($hasTorque && $approved) {
                 $magnitude = abs((float) $raw);
                 if ($magnitude >= (float) $rule->critical_magnitude) {
@@ -106,21 +107,20 @@ final class CockpitLiveController extends Controller
         }
 
         $operating = $robot->operatingTimeSamples()
-            ->where('time_type', 'ServoPowerOnTimeRobot')->orderByDesc('sampled_at')->first();
+            ->where('time_type', 'ServoPowerOnTimeRobot')->orderByDesc('sampled_at')->orderByDesc('id')->first();
+        $operatingDisplay = $timeDisplay->forSample($operating);
         $operatingHours = $operating && $operating->read_ok && $operating->value_seconds !== null
             ? round($operating->value_seconds / 3600, 2) : null;
-        $timeCandidate = $operating && $operating->read_ok
-            ? $timeParser->parse($operating->value_raw) : null;
         $alarmSnapshot = $robot->alarmSnapshots()->orderByDesc('sampled_at')->first();
         $alarmParsed = $alarmSnapshot && $alarmSnapshot->read_ok
             ? $alarmParser->parse($alarmSnapshot->sdk_text)
-            : ['recognized'=>false,'reported_count'=>null,'complete'=>false,'alarms'=>[]];
+            : ['recognized' => false, 'reported_count' => null, 'complete' => false, 'alarms' => []];
         $alarmValues = is_array($alarmSnapshot?->parsed_alarms)
             ? $alarmSnapshot->parsed_alarms
             : ($alarmParsed['recognized'] ? $alarmParsed['alarms'] : null);
         $jobEvidence = $jobParser->parse($latest?->raw_payload, $latest?->job_name);
         $jobEvidence['fresh'] = (bool) $fresh;
-        if (!$fresh) {
+        if (! $fresh) {
             $jobEvidence['name'] = null;
             $jobEvidence['source'] = null;
         }
@@ -174,7 +174,8 @@ final class CockpitLiveController extends Controller
             'last_sampled_wib' => $latest?->sampled_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s'),
             'fresh' => (bool) $fresh,
             'operating_hours' => $operatingHours,
-            'operating_candidate_hours' => $timeCandidate['hours'] ?? null,
+            'operating_candidate_hours' => $operatingDisplay['candidate_hours'],
+            'operating_display' => $operatingDisplay,
             'operating_source' => $operatingHours === null ? 'sdk_text_unverified' : 'verified_elapsed_time',
             'job_name' => $jobEvidence['name'],
             'job_evidence' => $jobEvidence,
@@ -184,8 +185,8 @@ final class CockpitLiveController extends Controller
                     ? ($alarmSnapshot->active_alarm_count ?? ($alarmParsed['recognized'] ? $alarmParsed['reported_count'] : null))
                     : null,
                 'identified_count' => is_array($alarmValues) ? count($alarmValues) : null,
-                'parse_state' => !$alarmSnapshot || !$alarmSnapshot->read_ok ? 'read_failed'
-                    : (!$alarmParsed['recognized'] ? 'unrecognized'
+                'parse_state' => ! $alarmSnapshot || ! $alarmSnapshot->read_ok ? 'read_failed'
+                    : (! $alarmParsed['recognized'] ? 'unrecognized'
                         : ($alarmParsed['complete'] ? 'complete' : 'partial')),
                 'parse_complete' => $alarmParsed['recognized'] && $alarmParsed['complete'],
                 'parse_persisted' => $alarmSnapshot?->parsed_alarms !== null,

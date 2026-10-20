@@ -13,6 +13,19 @@ const readClass = (element, state) => {
 };
 function addBadgeText(el, text, state) { if (el) { el.textContent = text; readClass(el, state); } }
 
+function updateOperatingHours(element, robot, prefix = '') {
+    if (!element) return;
+    const display = robot.operating_display;
+    const hours = robot.operating_hours;
+    const fallback = hours === null || hours === undefined || !Number.isFinite(Number(hours))
+        ? 'Belum tersedia' : `${Number(hours).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} h`;
+    element.textContent = prefix + (display?.text ?? fallback);
+    element.title = display?.caption ?? '';
+    element.dataset.rmsOperatingStatus = display?.status ?? 'unknown';
+    const caption = element.parentElement?.querySelector('[data-rms-operating-caption]');
+    if (caption) caption.textContent = display?.caption ?? '';
+}
+
 function robotFromPath() {
     const m = window.location.pathname.match(/^\/rms\/robots\/(\d+)(?:\/cockpit)?\/?$/);
     return m ? Number(m[1]) : null;
@@ -54,7 +67,7 @@ function updateCard(card, robot) {
     if (stamp) stamp.textContent = robot.last_sampled_wib?.split(' ').slice(-1)[0] || 'Belum ada';
     const metrics = all('.rms-card-metrics span', card);
     if (metrics[0]) metrics[0].textContent = `Alarm aktif: ${robot.alarm_count ?? '—'}`;
-    if (metrics[1]) metrics[1].textContent = `Operating: ${robot.operating_hours === null ? '—' : fmt(robot.operating_hours, 1) + ' h'}`;
+    updateOperatingHours(metrics[1], robot, 'Operating: ');
     card.dataset.rmsHealth = robot.health;
     card.dataset.rmsConnectivity = robot.connectivity;
 }
@@ -130,7 +143,7 @@ function updateDetail(robot) {
     addBadgeText(status[1],`HEALTH: ${robot.health.toUpperCase()}`,robot.health);
     const facts = all('.rms-facts .fact strong');
     if (facts[0]) facts[0].textContent = robot.last_sampled_wib ?? 'Belum ada';
-    if (facts[1]) facts[1].textContent = robot.operating_hours === null ? 'Belum terverifikasi':`${fmt(robot.operating_hours)} h`;
+    updateOperatingHours(facts[1], robot);
     if (facts[2]) facts[2].textContent = robot.alarm_count ?? 'Belum diketahui';
     const panels = all('.rms-detail-columns > section.panel');
     applyAxisPanel(panels[0], robot, false); applyAxisPanel(panels[1], robot, true);

@@ -264,11 +264,14 @@
     if (metrics[1]) {
       const verified = parsed(payload.operating_hours);
       const raw = parsed(payload.operating_candidate_hours);
-      metrics[1].textContent = verified !== null ? `${fmt(verified, 2)} h` :
-        raw !== null ? `${fmt(raw, 2)} h (NOT VERIFIED)` : 'Belum tersedia';
+      const display = payload.operating_display;
+      metrics[1].textContent = display?.text ?? (verified !== null ? `${fmt(verified, 2)} h` :
+        raw !== null ? `${fmt(raw, 2)} h (NOT VERIFIED)` : 'Belum tersedia');
+      metrics[1].title = display?.caption ?? '';
+      metrics[1].dataset.rmsOperatingStatus = display?.status ?? 'unknown';
       const small = metrics[1].parentElement?.querySelector('small');
-      if (small) small.textContent = verified !== null ? 'Jam sudah diverifikasi untuk jadwal PM' :
-        raw !== null ? 'Format nilai belum diverifikasi; jangan dipakai untuk jadwal PM' : 'Operating Time belum tersedia';
+      if (small) small.textContent = display?.caption ?? (verified !== null ? 'Jam sudah diverifikasi untuk jadwal PM' :
+        raw !== null ? 'Format nilai belum diverifikasi; jangan dipakai untuk jadwal PM' : 'Operating Time belum tersedia');
     }
     if (metrics[2]) metrics[2].textContent = String(payload.open_threshold_count ?? 0);
     if (metrics[3]) {
