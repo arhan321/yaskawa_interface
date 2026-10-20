@@ -10,6 +10,8 @@ use App\Models\RobotReducerMeasurement;
 use App\Models\RobotThresholdEvent;
 use App\Models\RobotThresholdRule;
 use App\Services\Rms\OperatingTimeDisplay;
+use App\Services\Rms\CockpitEvidence;
+use App\Services\Rms\ControllerStateTextReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -18,7 +20,8 @@ use Illuminate\Support\Facades\DB;
 /** Blade-only, read-only cockpit page. Does not impersonate OEM health algorithms. */
 class CockpitController extends Controller
 {
-    public function show(Request $request, Robot $robot, OperatingTimeDisplay $timeDisplay): View
+    public function show(Request $request, Robot $robot, OperatingTimeDisplay $timeDisplay,
+        CockpitEvidence $evidence, ControllerStateTextReader $stateReader): View
     {
         $validated = $request->validate(['period' => ['sometimes', 'in:1h,8h,24h']]);
         $period = $validated['period'] ?? '8h';
@@ -113,6 +116,10 @@ class CockpitController extends Controller
         $operating = $robot->operatingTimeSamples()->where('time_type', 'ServoPowerOnTimeRobot')
             ->orderByDesc('sampled_at')->orderByDesc('id')->first();
         $operatingDisplay = $timeDisplay->forSample($operating);
+        $controllerState = $fresh ? $stateReader->latest($robot) : null;
+        $jobDetail = $evidence->job($robot, (bool) $fresh);
+        $controllerIdentity = $evidence->identity($robot);
+        $operatingCounters = $evidence->counters($robot);
 
         $cockpitPayload = [
             'operating_display' => $operatingDisplay,
@@ -141,6 +148,10 @@ class CockpitController extends Controller
             'reducerTrend' => $reducerTrend,
             'operating' => $operating,
             'operatingDisplay' => $operatingDisplay,
+            'controllerState' => $controllerState,
+            'jobDetail' => $jobDetail,
+            'controllerIdentity' => $controllerIdentity,
+            'operatingCounters' => $operatingCounters,
             'alarms' => $robot->alarmEvents()->where('status', 'active')->latest('started_at')->limit(10)->get(),
         ]);
     }

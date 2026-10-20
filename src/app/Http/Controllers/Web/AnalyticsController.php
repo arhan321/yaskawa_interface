@@ -6,19 +6,22 @@ namespace App\Http\Controllers\Web;
 
 use App\Models\Robot;
 use App\Models\RobotTelemetrySample;
+use App\Services\Rms\ObservedOperationRate;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AnalyticsController extends BaseRmsWebController
 {
-    public function index(Request $request): View
+    public function index(Request $request, ObservedOperationRate $operationRate): View
     {
         $validated = $request->validate([
             'period' => ['sometimes', 'in:24h,7d'],
         ]);
         $period = $validated['period'] ?? '24h';
-        $since = $period === '7d' ? now()->subDays(7) : now()->subDay();
+        $until = CarbonImmutable::now();
+        $since = $period === '7d' ? $until->subDays(7) : $until->subDay();
 
         // Only data quality. These samples do NOT contain RUN/IDLE state intervals.
         $perRobot = RobotTelemetrySample::query()
@@ -41,9 +44,15 @@ class AnalyticsController extends BaseRmsWebController
             ->orderBy('local_day')
             ->get();
 
+        $robots = Robot::query()->orderBy('robot_code')->get();
+        $operation = $robots->mapWithKeys(fn (Robot $robot): array => [
+            $robot->id => $operationRate->forRobot((int) $robot->id, $since, $until),
+        ]);
+
         return view('rms.analytics.index', [
             'title' => 'Data Quality & Analytics',
-            'robots' => Robot::query()->orderBy('robot_code')->get(),
+            'robots' => $robots,
+            'operation' => $operation,
             'perRobot' => $perRobot,
             'daily' => $daily,
             'period' => $period,
@@ -56,7 +65,7 @@ class AnalyticsController extends BaseRmsWebController
                 'downtime_minutes' => null,
                 'running_minutes' => null,
             ],
-            'unavailableReason' => 'Durasi RUN/IDLE/STOP/UNKNOWN dan jadwal shift belum tersedia pada monitoring data saat ini.',
+            'unavailableReason' => 'Jadwal shift, planned downtime, dan semantik produksi belum dikonfigurasi.',
         ]);
     }
 }

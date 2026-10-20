@@ -14,6 +14,7 @@ use App\Services\Rms\AlarmTextParser;
 use App\Services\Rms\ControllerStateTextReader;
 use App\Services\Rms\JobTextParser;
 use App\Services\Rms\OperatingTimeDisplay;
+use App\Services\Rms\CockpitEvidence;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class CockpitLiveController extends Controller
 {
-    public function __invoke(Request $request, Robot $robot, OperatingTimeDisplay $timeDisplay, ControllerStateTextReader $stateReader, AlarmTextParser $alarmParser, JobTextParser $jobParser): JsonResponse
+    public function __invoke(Request $request, Robot $robot, OperatingTimeDisplay $timeDisplay, ControllerStateTextReader $stateReader, AlarmTextParser $alarmParser, JobTextParser $jobParser, CockpitEvidence $evidence): JsonResponse
     {
         $validated = $request->validate(['period' => ['sometimes', 'in:1h,8h,24h']]);
         $period = $validated['period'] ?? '8h';
@@ -125,6 +126,7 @@ final class CockpitLiveController extends Controller
             $jobEvidence['source'] = null;
         }
         $controllerState = $fresh ? $stateReader->latest($robot) : null;
+        $jobDetail = $evidence->job($robot, (bool) $fresh);
         $thresholdCount = RobotThresholdEvent::query()->where('robot_id', $robot->id)->where('status', 'open')->count();
         $structuredAlarmCount = RobotAlarmEvent::query()->where('robot_id', $robot->id)->where('status', 'active')->count();
         $thresholdEvents = RobotThresholdEvent::query()->where('robot_id', $robot->id)
@@ -180,6 +182,9 @@ final class CockpitLiveController extends Controller
             'job_name' => $jobEvidence['name'],
             'job_evidence' => $jobEvidence,
             'controller_state' => $controllerState,
+            'job_detail' => $jobDetail,
+            'controller_identity' => $evidence->identity($robot),
+            'operating_counters' => $evidence->counters($robot),
             'alarm_raw' => [
                 'reported_count' => $alarmSnapshot?->read_ok
                     ? ($alarmSnapshot->active_alarm_count ?? ($alarmParsed['recognized'] ? $alarmParsed['reported_count'] : null))

@@ -108,6 +108,13 @@
     <label class="field">Kode/nama
       <input type="search" name="search" class="input" value="{{ $filter['search'] ?? '' }}" maxlength="100" placeholder="Cari alarm">
     </label>
+    <label class="field">Kategori histori
+      <select name="category" class="input">
+        @foreach(['all','Major','Minor','UserSystem','User','Offline'] as $category)
+          <option value="{{ $category }}" @selected(($filter['category'] ?? 'all') === $category)>{{ $category }}</option>
+        @endforeach
+      </select>
+    </label>
     <button type="submit" class="btn primary">Cari</button>
     <a class="btn" href="{{ route('rms.alarms.index') }}">Reset</a>
   </form>
@@ -137,6 +144,17 @@
     </div>
     <div class="rms-pagination">{{ $events->links() }}</div>
   @endif
+</section>
+
+<section class="panel rms-section-spaced" id="controller-alarm-history">
+  <div class="panel-header"><div><h2>YMConnect Controller Alarm History</h2><p>Kategori dibaca langsung dari histori controller; waktu controller disimpan sebagai teks asli.</p></div><span class="rms-muted-small">{{ $historyEntries->total() }} record unik</span></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Robot</th><th>Kategori</th><th>Kode / subcode</th><th>Nama</th><th>Waktu controller (raw)</th><th>Pertama terambil (WIB)</th></tr></thead><tbody>
+    @forelse($historyEntries as $entry)
+      <tr><td>{{ $entry->robot?->robot_code ?? '—' }}</td><td>{{ $entry->category }}</td><td>{{ $entry->alarm_code }} / {{ $entry->subcode ?? '—' }}</td><td>{{ $entry->alarm_name }}</td><td>{{ $entry->controller_time_raw }}</td><td>{{ $entry->first_observed_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s') }}</td></tr>
+    @empty<tr><td colspan="6">Belum ada entri histori yang dapat diidentifikasi. Cek status pembacaan kategori pada snapshot raw.</td></tr>@endforelse
+  </tbody></table></div>
+  <div class="rms-pagination">{{ $historyEntries->links() }}</div>
+  <p class="rms-muted-small">Waktu controller belum disinkronkan dengan waktu server. Job, line, step, dan mode saat kejadian tidak disediakan dalam payload histori YMConnect saat ini; jangan menyamakan data terbaru dengan konteks kejadian lama.</p>
 </section>
 
 <section class="panel rms-section-spaced">

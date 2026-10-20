@@ -2,7 +2,23 @@
 @section('heading', 'Preventive maintenance')
 @section('subtitle', 'Atur interval servis, penggantian grease, dan catat pekerjaan robot dengan mudah.')
 @section('content')
-<link rel="stylesheet" href="{{ asset('rms/css/pm-operator.css') }}">
+<link rel="stylesheet" href="{{ asset('rms/css/pm-operator.css') }}?v=20261020-2">
+<style>
+  .pm-component-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+  .pm-component-card{border:1px solid #dde9e1;border-radius:10px;padding:14px;background:#fafdfb;display:grid;gap:7px;min-width:0}
+  .pm-component-card strong{font-size:13px}.pm-component-card small{font-size:11px;line-height:1.5;color:#687d70}
+  .pm-component-card>span{font-size:11px;font-weight:700;color:#397b59}
+  .pm-component-card[data-status="due"]>span{color:#9e5b2d}
+  .pm-component-card[data-status="unknown"]>span{color:#747f78}
+  .pm-component-card[data-status="due"]{border-color:#d69f75;background:#fff8f0}
+  .pm-component-card[data-status="unknown"]{background:#f5f7f6}
+  .pm-component-empty{padding:18px;border:1px dashed #cbded1;border-radius:10px;background:#f7faf8;color:#456553}
+  .pm-component-empty strong{display:block;font-size:13px}
+  .pm-component-empty p{margin:6px 0 0;font-size:11px;line-height:1.6}
+  @media(max-width:1200px){.pm-component-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:800px){.pm-component-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:540px){.pm-component-grid{grid-template-columns:1fr}}
+</style>
 
 {{-- Operator flow is deliberately login-free. Dashboard reads remain as before. --}}
 @if(session('pm_success'))
@@ -31,10 +47,61 @@
   </form>
 </div>
 
+@if($categoryOverview !== [])
+@php
+  $configuredCategories = array_filter($categoryOverview, static fn (array $category): bool => $category['plans'] > 0);
+  $unconfiguredCount = count($categoryOverview) - count($configuredCategories);
+@endphp
+<section class="panel rms-section-spaced">
+  <div class="panel-header"><h2>PM per komponen</h2><span class="rms-muted-small">Robot terpilih · interval sesuai SOP/manual</span></div>
+  @if($configuredCategories === [])
+    <div class="pm-component-empty" role="status">
+      <strong>Belum ada jadwal PM per komponen untuk robot ini.</strong>
+      <p>Buat jadwal maintenance dan pilih kategori komponen agar status dan sisa jamnya tampil di sini.</p>
+    </div>
+  @else
+    <div class="pm-component-grid">
+      @foreach($configuredCategories as $category)
+        <div class="pm-component-card" data-status="{{ $category['status'] }}">
+          <strong>{{ $category['label'] }}</strong>
+          <span>{{ match($category['status']) {'due'=>'DUE','scheduled'=>'SCHEDULED','unknown'=>'JAM / JADWAL BELUM VALID',default=>'BELUM ADA PLAN'} }}</span>
+          <small>
+            {{ $category['plans'] }} plan aktif
+            @if($category['hours_remaining'] !== null)
+              @if($category['hours_remaining'] <= 0)
+                <br>Lewat {{ number_format(abs($category['hours_remaining']), 2, ',', '.') }} jam dari pembacaan terakhir
+              @else
+                <br>Sisa {{ number_format($category['hours_remaining'], 2, ',', '.') }} jam dari pembacaan terakhir
+              @endif
+            @endif
+          </small>
+        </div>
+      @endforeach
+    </div>
+    @if($unconfiguredCount > 0)
+      <p class="pm-hint">{{ $unconfiguredCount }} kategori lain belum memiliki jadwal PM aktif untuk robot ini.</p>
+    @endif
+  @endif
+  <p class="pm-hint">Belum ada plan bukan berarti komponen aman. Nilai sisa jam hanya muncul ketika counter servo terverifikasi; status calendar memakai due date. Cocokkan interval dengan SOP spesifik SP210/YRC1000.</p>
+</section>
+@endif
+
 @if(config('rms_pm.guest_write_enabled', false))
 {{-- NEW: PM planning form, collapsed by default for operators. --}}
-<details class="pm-expand pm-new-plan rms-section-spaced" @if($errors->any()) open @endif>
-  <summary><span class="pm-plus">+</span><span><strong>Tambah jadwal maintenance</strong><small>Contoh: ganti grease reducer axis S setiap interval sesuai manual/SOP</small></span></summary>
+<details id="pm-new-plan" class="pm-expand pm-new-plan rms-section-spaced" @if($errors->any()) open @endif>
+  <summary>
+    <span class="pm-plus" aria-hidden="true"></span>
+    <span class="pm-summary-copy">
+      <span class="pm-summary-eyebrow">PERENCANAAN PREVENTIVE MAINTENANCE</span>
+      <strong>Tambah jadwal maintenance</strong>
+      <small>Atur pekerjaan, interval, dan komponen sesuai manual atau SOP robot.</small>
+    </span>
+    <span class="pm-summary-action" aria-hidden="true">
+      <span class="pm-action-closed">Buka formulir</span>
+      <span class="pm-action-open">Tutup formulir</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+    </span>
+  </summary>
   <form method="POST" action="{{ route('rms.maintenance.store') }}" class="pm-form" autocomplete="off">
     @csrf
     <div class="pm-form-grid">
@@ -48,6 +115,11 @@
       </label>
       <label class="field">Nama pekerjaan <span class="pm-required">*</span>
         <input class="input" name="title" maxlength="180" required placeholder="Contoh: Penggantian grease reducer" value="{{ old('title') }}">
+      </label>
+      <label class="field">Kategori komponen / pekerjaan
+        <select class="input" name="component_category"><option value="">Belum diklasifikasikan</option>
+          @foreach($componentCategories as $key=>$label)<option value="{{ $key }}" @selected(old('component_category')===$key)>{{ $label }}</option>@endforeach
+        </select>
       </label>
       <label class="field">Axis / komponen
         <select class="input" name="component_axis">
@@ -107,6 +179,7 @@
         <span class="mono">#{{ $plan->id }}</span>
       </div>
       <h3>{{ $plan->title }}</h3>
+      @if($plan->component_category)<p class="pm-hint">Kategori: {{ $componentCategories[$plan->component_category] ?? $plan->component_category }}</p>@endif
       <p>{{ $plan->description ?: 'Belum ada deskripsi pekerjaan' }}</p>
       @if($plan->component_axis || $plan->grease_specification)
         <div class="pm-tags">
@@ -169,6 +242,11 @@
             <label class="field">Nama pekerjaan
               <input class="input" name="title" maxlength="180" required value="{{ $plan->title }}">
             </label>
+            <label class="field">Kategori komponen / pekerjaan
+              <select class="input" name="component_category"><option value="">Belum diklasifikasikan</option>
+                @foreach($componentCategories as $key=>$label)<option value="{{ $key }}" @selected($plan->component_category===$key)>{{ $label }}</option>@endforeach
+              </select>
+            </label>
             <label class="field">Axis / komponen
               <select class="input" name="component_axis">
                 <option value="">Umum</option>
@@ -222,7 +300,18 @@
       @endif
     </article>
   @empty
-    <div class="panel">@include('rms.partials.no-data',['message'=>'Belum ada Maintenance Plan yang tersimpan.'])</div>
+    <div class="panel pm-plans-empty" role="status">
+      <span class="pm-empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h8"/></svg>
+      </span>
+      <div><strong>Belum ada jadwal maintenance pada filter ini</strong>
+        @if(config('rms_pm.guest_write_enabled', false))
+          <p>Gunakan kartu “Tambah jadwal maintenance” di atas untuk membuat plan berdasarkan manual atau SOP robot.</p>
+        @else
+          <p>Plan berdasarkan manual atau SOP robot akan tampil di sini setelah jadwal dibuat.</p>
+        @endif
+      </div>
+    </div>
   @endforelse
   </div>
   <div class="rms-pagination">{{ $plans->links() }}</div>
@@ -232,7 +321,14 @@
 <section class="panel rms-section-spaced">
   <div class="panel-header"><h2>Maintenance journal</h2><span class="rms-muted-small">{{ $logs->total() }} record</span></div>
   @if($logs->isEmpty())
-    @include('rms.partials.no-data',['message'=>'Belum ada maintenance log tersimpan.'])
+    <div class="pm-journal-empty" role="status">
+      <span class="pm-empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l3 3v15H5V3h3zm8 0v4h4M8 12h8m-8 4h5"/></svg>
+      </span>
+      <div><strong>Belum ada riwayat pekerjaan pada filter ini</strong>
+        <p>Catatan servis akan tampil setelah pekerjaan pada jadwal PM dicatat selesai.</p>
+      </div>
+    </div>
   @else
     <div class="table-wrap">
       <table class="data-table"><thead><tr><th>Robot</th><th>Waktu pekerjaan</th><th>Teknisi</th><th>Jenis / hasil</th><th>Temuan</th><th>Pemeriksa historis (jika ada)</th></tr></thead><tbody>

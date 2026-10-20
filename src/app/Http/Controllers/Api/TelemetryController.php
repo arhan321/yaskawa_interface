@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Robot;
 use App\Models\RobotTelemetrySample;
+use App\Services\Rms\ControllerStateIngestor;
 use App\Services\Rms\JobTextParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class TelemetryController extends BaseRmsController
         return response()->json(['data'=>$robot->telemetrySamples()->orderByDesc('received_at')->orderByDesc('id')->first()]);
     }
 
-    public function store(Request $request, JobTextParser $jobParser): JsonResponse
+    public function store(Request $request, JobTextParser $jobParser, ControllerStateIngestor $stateIngestor): JsonResponse
     {
         $rules=[
             'robot_id'=>['required','integer','exists:robots,id'],
@@ -77,9 +78,13 @@ class TelemetryController extends BaseRmsController
                 'collector_session_id'=>$data['collector_session_id'],
                 'sequence'=>$data['sequence']];
             $sample=RobotTelemetrySample::firstOrCreate($key,$data);
+            $stateIngestor->ingest($sample);
             return response()->json(['data'=>$sample,'created'=>$sample->wasRecentlyCreated],
                 $sample->wasRecentlyCreated?201:200);
         }
-        return response()->json(['data'=>RobotTelemetrySample::create($data),'created'=>true],201);
+        $sample = RobotTelemetrySample::create($data);
+        $stateIngestor->ingest($sample);
+
+        return response()->json(['data'=>$sample,'created'=>true],201);
     }
 }

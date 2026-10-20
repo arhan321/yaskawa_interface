@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Models\MaintenancePlan;
+use App\Services\Rms\MaintenanceCategories;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -63,6 +64,7 @@ class MaintenancePlanController extends BaseRmsController
             'robot_id' => [$creating ? 'required' : 'sometimes', 'integer', 'exists:robots,id'],
             'title' => [$creating ? 'required' : 'sometimes', 'string', 'max:180'],
             'description' => ['nullable', 'string'],
+            'component_category' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(MaintenanceCategories::LABELS))],
             'basis' => [$creating ? 'required' : 'sometimes', 'in:operating_hours,calendar'],
             'interval_hours' => ['nullable', 'numeric', 'gt:0'],
             'interval_days' => ['nullable', 'integer', 'min:1'],

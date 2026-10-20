@@ -3,7 +3,7 @@
 @section('subtitle', 'Motor Torque, Position, Threshold, dan Speed Reducer monitoring untuk kebutuhan teknisi.')
 @section('auto_refresh', 'off')
 @push('styles')
-<link rel="stylesheet" href="{{ asset('rms/css/cockpit.css') }}?v=20261015-2255">
+<link rel="stylesheet" href="{{ asset('rms/css/cockpit.css') }}?v=20261020-cockpit-evidence">
 <link rel="stylesheet" href="{{ asset('rms/css/technician-guide.css') }}?v=20261015-2255">
 @endpush
 @section('content')
@@ -21,7 +21,7 @@ $axisStateLabels = [
 @endphp
 <div class="cp-root" data-cockpit>
   <div class="cp-toolbar">
-    <div class="cp-links"><a href="{{ route('rms.robots.show',$robot) }}">← Robot detail</a><a href="{{ route('rms.robots.index') }}">Robot monitor</a><a href="{{ route('rms.robots.configuration', $robot) }}">⚙ Konfigurasi</a>@if(Route::has('rms.logs.index'))<a href="{{ route('rms.logs.index', ['robot_id'=>$robot->id]) }}">Log robot</a>@endif</div>
+    <div class="cp-links"><a href="{{ route('rms.robots.show',$robot) }}">← Robot detail</a><a href="{{ route('rms.robots.index') }}">Robot monitor</a><a href="{{ route('rms.robots.configuration', $robot) }}">⚙ Konfigurasi</a><a href="{{ route('rms.alarms.index', ['robot_id' => $robot->id]) }}#controller-alarm-history">Alarm history</a><a href="{{ route('rms.analytics.index') }}">RUN teramati</a><a href="{{ route('rms.maintenance.index', ['robot_id' => $robot->id]) }}">PM komponen</a>@if(Route::has('rms.logs.index'))<a href="{{ route('rms.logs.index', ['robot_id'=>$robot->id]) }}">Log robot</a>@endif</div>
     <div class="cp-tags">
       @if($isDemo)<span class="cp-pill cp-demo">DATA DEMO</span>@endif
       <span class="cp-pill {{ $fresh?'cp-ok':'cp-muted' }}">{{ $fresh?'TELEMETRY FRESH':'TELEMETRY STALE / UNKNOWN' }}</span>
@@ -37,6 +37,37 @@ $axisStateLabels = [
     <div><span>Open Threshold Events</span><strong>{{ $openEvents->count() }}</strong><small>RMS monitoring event; bukan Controller Alarm</small></div>
     <div><span>Identified Active Alarms</span><strong>{{ $alarms->count() }}</strong><small>Alarm controller yang kode dan statusnya berhasil diidentifikasi</small></div>
   </div>
+
+  <div class="cp-evidence-grid">
+    <section class="cp-panel cp-evidence-panel"><header><div><span class="cp-kicker">BASIC INFORMATION</span><h3>Controller & system structure</h3></div></header>
+      <div class="cp-evidence-kv">
+        <div><span>Master equipment / lokasi</span><strong>{{ $robot->controller?->controller_code ?? '—' }} · {{ $robot->line_name ?? '—' }} / {{ $robot->station_name ?? '—' }}</strong></div>
+        <div><span>R1 model dari SDK</span><strong data-cockpit-system="robot_r1">{{ $controllerIdentity['robot_r1']['model_name'] ?? 'Belum terbaca' }}</strong></div>
+        <div><span>R1 software version</span><strong data-cockpit-version="robot_r1">{{ $controllerIdentity['robot_r1']['software_version'] ?? 'Belum terbaca' }}</strong></div>
+        <div><span>S1 station terdeteksi</span><strong data-cockpit-system="station_s1">{{ $controllerIdentity['station_s1']['model_name'] ?? 'Belum terbaca / tidak tersedia' }}</strong></div>
+        <div><span>A1 application</span><strong data-cockpit-system="application_a1">{{ $controllerIdentity['application_a1']['model_name'] ?? 'Belum terbaca' }}</strong></div>
+      </div>
+      <p class="cp-smallnote">Informasi SDK terakhir: <span data-cockpit-info-time>{{ $controllerIdentity['sampled_at'] ?? '—' }}</span> WIB. Serial controller belum tersedia pada pembacaan ini. S1 di sini adalah identitas station, belum monitoring axis gun.</p>
+    </section>
+    <section class="cp-panel cp-evidence-panel"><header><div><span class="cp-kicker">CURRENT STATUS</span><h3>State & executing job</h3></div><span class="cp-panel-sub">YMConnect read-only · bukan safety signal</span></header>
+      <div class="cp-status-grid">
+        @foreach(['running'=>'RUN','servo_on'=>'Servo ON','alarming'=>'ALARM','hold'=>'HOLD','error'=>'ERROR'] as $key=>$label)
+          @php($value = $controllerState[$key] ?? null)
+          <div><span>{{ $label }}</span><strong data-cockpit-state="{{ $key }}" class="cp-state {{ $value === null ? 'cp-unavailable' : ($value ? 'cp-warning' : 'cp-normal') }}">{{ $value === null ? 'UNKNOWN' : ($value ? 'ON' : 'OFF') }}</strong></div>
+        @endforeach
+      </div>
+      <div class="cp-evidence-kv"><div><span>Control mode / cycle</span><strong><span data-cockpit-mode="control">{{ $controllerState['control_mode'] ?? '—' }}</span> / <span data-cockpit-mode="cycle">{{ $controllerState['cycle_mode'] ?? '—' }}</span></strong></div>
+        <div><span>Job / line / step / speed override</span><strong><span data-cockpit-job="name">{{ $jobDetail['name'] ?? '—' }}</span> · L<span data-cockpit-job="line">{{ $jobDetail['line'] ?? '—' }}</span> · S<span data-cockpit-job="step">{{ $jobDetail['step'] ?? '—' }}</span> · <span data-cockpit-job="speed_override_percent">{{ $jobDetail['speed_override_percent'] ?? '—' }}</span>%</strong></div></div>
+      <p class="cp-smallnote">Status menjadi UNKNOWN saat pembacaan state tidak segar. HOLD tidak dibedakan menjadi pendant / external / command oleh SDK ini. Emergency stop dan energy-saving tidak diklaim dari field yang tidak dibaca.</p>
+    </section>
+  </div>
+
+  <section class="cp-panel cp-evidence-panel"><header><div><span class="cp-kicker">OPERATING COUNTERS</span><h3>Jam controller dan R1</h3></div><span class="cp-panel-sub">Diagnostic reads · interval collector 60 detik</span></header>
+    <div class="cp-counter-grid">@foreach($operatingCounters as $type=>$counter)
+      <div><span>{{ $counter['label'] }}</span><strong data-cockpit-counter="{{ $type }}">{{ $counter['hours'] === null ? '—' : number_format($counter['hours'], 2, ',', '.').' h' }}</strong><small data-cockpit-counter-time="{{ $type }}">{{ $counter['sampled_at'] ?? 'Belum terbaca' }} WIB</small></div>
+    @endforeach</div>
+    <p class="cp-smallnote">Counter ini hanya tampil bila pembacaan SDK valid dan format durasi terbaca. Servo power R1 baru dapat menjadi dasar PM setelah diverifikasi terhadap pendant; energy-saving counter belum ada di SDK yang dipakai.</p>
+  </section>
 
   @include('rms.partials.technician-guide', ['guideId' => 'cockpit-technical-guide', 'guideOpen' => false])
 
@@ -109,7 +140,7 @@ $axisStateLabels = [
       </tbody></table></div>
     </section>
     <section class="cp-panel"><header><div><span class="cp-kicker">MAINTENANCE REVIEW</span><h3>Data Quality & Action</h3></div></header>
-      <div class="cp-quality"><div><strong>Controller Telemetry</strong><span>{{ $fresh?'Fresh data':'Stale or unavailable' }}</span></div><div><strong>Approved Torque Thresholds</strong><span>{{ $rules->filter(fn($r)=>$r->isApproved())->count() }} / 6 axis</span></div><div><strong>Verified Reducer Measurements</strong><span>{{ $reducerByAxis->filter()->count() }} / 6 axis</span></div><div><strong>Controller RUN/IDLE</strong><span>Belum tersedia</span></div><div><strong>Job & I/O</strong><span>Belum tersedia</span></div></div>
+      <div class="cp-quality"><div><strong>Controller Telemetry</strong><span>{{ $fresh?'Fresh data':'Stale or unavailable' }}</span></div><div><strong>Approved Torque Thresholds</strong><span>{{ $rules->filter(fn($r)=>$r->isApproved())->count() }} / 6 axis</span></div><div><strong>Verified Reducer Measurements</strong><span>{{ $reducerByAxis->filter()->count() }} / 6 axis</span></div><div><strong>Controller RUN/IDLE</strong><span>{{ $controllerState ? ('Mode '.($controllerState['control_mode'] ?? '?').' · RUN '.($controllerState['running'] ? 'ON' : 'OFF')) : 'Belum tersedia / STALE' }}</span></div><div><strong>Job & I/O</strong><span>{{ $jobDetail['name'] ? 'Job: '.$jobDetail['name'].' · I/O belum dinormalisasi' : 'Job belum terbaca · I/O belum dinormalisasi' }}</span></div></div>
       <div class="cp-smallnote">Saat telemetry <strong>STALE</strong>, kondisi robot harus diperlakukan <strong>UNKNOWN</strong>, bukan Normal dan bukan otomatis rusak. Keputusan maintenance tetap memerlukan pengecekan pendant, Controller Alarm, dan inspeksi teknisi.</div>
     </section>
   </div>
@@ -117,5 +148,5 @@ $axisStateLabels = [
 <script>
 window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
-<script src="{{ asset('rms/js/cockpit.js') }}?v=20261020-operating-hours" defer></script>
+<script src="{{ asset('rms/js/cockpit.js') }}?v=20261020-cockpit-evidence" defer></script>
 @endsection

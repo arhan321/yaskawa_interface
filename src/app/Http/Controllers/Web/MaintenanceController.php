@@ -8,6 +8,7 @@ use App\Models\MaintenanceLog;
 use App\Models\MaintenancePlan;
 use App\Models\Robot;
 use App\Models\RobotOperatingTimeSample;
+use App\Services\Rms\MaintenanceCategories;
 use Illuminate\Contracts\View\View;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -76,12 +77,54 @@ class MaintenanceController extends BaseRmsWebController
             ];
         }
 
+        $categories = [];
+        if (! empty($filter['robot_id'])) {
+            $robotId = (int) $filter['robot_id'];
+            $categoryPlans = MaintenancePlan::query()->where('robot_id', $robotId)
+                ->where('is_active', true)->whereNotNull('component_category')->get();
+            $latestServo = RobotOperatingTimeSample::query()->where('robot_id', $robotId)
+                ->where('time_type', 'ServoPowerOnTimeRobot')
+                ->orderByDesc('sampled_at')->orderByDesc('id')->first();
+            $verifiedHours = $latestServo?->read_ok && $latestServo->value_seconds !== null
+                ? $latestServo->value_seconds / 3600 : null;
+            $hoursFresh = $latestServo?->sampled_at?->greaterThanOrEqualTo(now()->subMinutes(5))
+                && $latestServo?->received_at?->greaterThanOrEqualTo(now()->subMinutes(5));
+            foreach (MaintenanceCategories::LABELS as $key => $label) {
+                $work = $categoryPlans->where('component_category', $key);
+                $due = false;
+                $unknown = false;
+                $remaining = null;
+                foreach ($work as $plan) {
+                    if ($plan->basis === 'operating_hours') {
+                        if ($verifiedHours === null || $plan->next_due_operating_hours === null) {
+                            $unknown = true;
+                        } else {
+                            $hours = (float) $plan->next_due_operating_hours - $verifiedHours;
+                            $remaining = $remaining === null ? $hours : min($remaining, $hours);
+                            $due = $due || $hours <= 0;
+                            $unknown = $unknown || ! $hoursFresh;
+                        }
+                    } elseif ($plan->next_due_at === null) {
+                        $unknown = true;
+                    } else {
+                        $due = $due || $plan->next_due_at->lessThanOrEqualTo(now());
+                    }
+                }
+                $categories[$key] = [
+                    'label' => $label, 'plans' => $work->count(), 'hours_remaining' => $remaining,
+                    'status' => $work->isEmpty() ? 'unconfigured' : ($due ? 'due' : ($unknown ? 'unknown' : 'scheduled')),
+                ];
+            }
+        }
+
         return view('rms.maintenance.index', [
             'title' => 'Preventive Maintenance',
             'robots' => Robot::query()->orderBy('robot_code')->get(['id','robot_code','name']),
             'plans' => $plans,
             'logs' => $logs,
             'dueStatuses' => $dueStatuses,
+            'componentCategories' => MaintenanceCategories::LABELS,
+            'categoryOverview' => $categories,
             'filter' => $filter,
             'note' => 'Interval servis ditentukan SOP/manual yang berlaku, bukan rekomendasi otomatis OEM. Jam terbaru bisa berupa histori lama; jangan anggap LIVE tanpa timestamp segar.',
         ]);
@@ -110,7 +153,7 @@ class MaintenanceController extends BaseRmsWebController
         $data = $this->resolveInitialDue($data, $maintenancePlan);
         $before = $maintenancePlan->only(['basis','interval_hours','interval_days',
             'next_due_operating_hours','next_due_at','is_active',
-            'component_axis','grease_specification','reference_document']);
+            'component_axis','component_category','grease_specification','reference_document']);
         $maintenancePlan->update($data);
         Log::info('rms.pm.plan_updated', [
             'plan_id' => $maintenancePlan->id, 'before' => $before,
@@ -173,6 +216,7 @@ class MaintenanceController extends BaseRmsWebController
                     'pm_interval_hours' => $plan->interval_hours,
                     'pm_interval_days' => $plan->interval_days,
                     'pm_title' => $plan->title,
+                    'component_category' => $plan->component_category,
                 ],
             ]);
             // Re-base the NEXT due from the actual reported completion point.
@@ -208,6 +252,7 @@ class MaintenanceController extends BaseRmsWebController
             'robot_id' => ['required', 'integer', 'exists:robots,id'],
             'title' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
+            'component_category' => ['nullable', Rule::in(array_keys(MaintenanceCategories::LABELS))],
             'basis' => ['required', Rule::in(['operating_hours', 'calendar'])],
             'interval_hours' => ['nullable', 'numeric', 'gt:0', 'max:99999999'],
             'interval_days' => ['nullable', 'integer', 'min:1', 'max:100000'],

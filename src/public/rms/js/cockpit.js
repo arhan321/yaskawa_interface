@@ -377,6 +377,54 @@
     if (subtitle) subtitle.textContent = `${events.length} latest records`;
   }
 
+  function updateEvidence(payload) {
+    const controller = payload.controller_state || null;
+    const indicators = {
+      running: controller?.running, servo_on: controller?.servo_on,
+      alarming: controller?.alarming, hold: controller?.hold, error: controller?.error
+    };
+    for (const [key, value] of Object.entries(indicators)) {
+      const badge = one(`[data-cockpit-state="${key}"]`, root);
+      if (!badge) continue;
+      badge.textContent = typeof value === 'boolean' ? (value ? 'ON' : 'OFF') : 'UNKNOWN';
+      badge.className = `cp-state ${typeof value !== 'boolean' ? 'cp-unavailable' : value ? 'cp-warning' : 'cp-normal'}`;
+    }
+    const modes = {control: controller?.control_mode, cycle: controller?.cycle_mode};
+    for (const [key, value] of Object.entries(modes)) {
+      const cell = one(`[data-cockpit-mode="${key}"]`, root);
+      if (cell) cell.textContent = typeof value === 'string' && value ? value : '—';
+    }
+
+    const job = payload.job_detail || {};
+    for (const key of ['name', 'line', 'step', 'speed_override_percent']) {
+      const cell = one(`[data-cockpit-job="${key}"]`, root);
+      if (cell) cell.textContent = job[key] === null || job[key] === undefined || job[key] === '' ? '—' : String(job[key]);
+    }
+
+    const info = payload.controller_identity;
+    if (info && typeof info === 'object') {
+      for (const key of ['robot_r1', 'station_s1', 'application_a1']) {
+        const model = one(`[data-cockpit-system="${key}"]`, root);
+        const version = one(`[data-cockpit-version="${key}"]`, root);
+        if (model) model.textContent = info[key]?.model_name || 'Belum terbaca / tidak tersedia';
+        if (version) version.textContent = info[key]?.software_version || 'Belum terbaca';
+      }
+      const stamp = one('[data-cockpit-info-time]', root);
+      if (stamp) stamp.textContent = info.sampled_at || '—';
+    }
+
+    const counters = payload.operating_counters;
+    if (counters && typeof counters === 'object') {
+      for (const key of ['ControllerOnTime', 'ServoPowerOnTimeRobot', 'PlayBackTimeRobot', 'MovingTimeRobot']) {
+        const value = counters[key];
+        const cell = one(`[data-cockpit-counter="${key}"]`, root);
+        const time = one(`[data-cockpit-counter-time="${key}"]`, root);
+        if (cell) cell.textContent = parsed(value?.hours) === null ? '—' : `${fmt(value.hours, 2)} h`;
+        if (time) time.textContent = value?.sampled_at ? `${value.sampled_at} WIB` : 'Belum terbaca';
+      }
+    }
+  }
+
   function updateQuality(payload) {
     const fields = all('.cp-quality > div > span');
     if (fields[0]) fields[0].textContent = payload.fresh
@@ -390,13 +438,11 @@
       ? `Mode ${state.control_mode ?? '?'} · RUN ${state.running === null ? '?' : state.running ? 'ON' : 'OFF'} · SERVO ${state.servo_on === null ? '?' : state.servo_on ? 'ON' : 'OFF'}`
       : 'Current controller state unavailable';
     if (fields[4]) {
-      const job = payload.job_evidence;
+      const job = payload.job_detail;
       if (job?.name) {
-        fields[4].textContent = `Job: ${job.name} (candidate, unverified) · I/O belum tersedia`;
-      } else if (job?.raw_available) {
-        fields[4].textContent = 'Job raw tersedia, nama belum terbaca · I/O belum tersedia';
+        fields[4].textContent = `Job: ${job.name} · I/O belum dinormalisasi`;
       } else {
-        fields[4].textContent = 'Nama job belum berhasil dibaca collector · I/O belum tersedia';
+        fields[4].textContent = 'Job belum terbaca · I/O belum dinormalisasi';
       }
     }
     const lastUpdate = one('#rms-last-update');
@@ -447,6 +493,7 @@
       updateAxisRows(payload);
       updateRules(payload);
       updateThresholdEvents(payload);
+      updateEvidence(payload);
       updateQuality(payload);
       renderTorque();
       renderReducer();
@@ -466,6 +513,7 @@
           }]))
         };
         updateAxisRows(stalePayload);
+        updateEvidence({controller_state: null, job_detail: null});
         const pill = one('.cp-tags .cp-pill:last-child');
         if (pill) {
           pill.textContent = 'TELEMETRY STALE / UNKNOWN';

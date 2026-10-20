@@ -6,7 +6,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
+use App\Models\RobotAlarmHistoryEntry;
 use App\Models\RobotAlarmSnapshot;
+use App\Services\Rms\AlarmHistoryImporter;
 use App\Services\Rms\AlarmSnapshotProcessor;
 use App\Services\Rms\AlarmTextParser;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +16,25 @@ use Illuminate\Http\Request;
 
 class AlarmController extends BaseRmsController
 {
+    public function history(Request $request): JsonResponse
+    {
+        $filters = $this->queryPeriod($request);
+        $options = $request->validate([
+            'robot_id' => ['sometimes', 'integer', 'exists:robots,id'],
+            'category' => ['sometimes', 'in:Major,Minor,UserSystem,User,Offline'],
+        ]);
+        $query = RobotAlarmHistoryEntry::query();
+        if (isset($options['robot_id'])) {
+            $query->where('robot_id', $options['robot_id']);
+        }
+        if (isset($options['category'])) {
+            $query->where('category', $options['category']);
+        }
+        $this->applyPeriod($query, $filters, 'first_observed_at');
+
+        return response()->json($query->orderByDesc('first_observed_at')->paginate($filters['per_page'] ?? 25));
+    }
+
     public function events(Request $request): JsonResponse
     {
         $filters=$this->queryPeriod($request);
@@ -60,7 +81,7 @@ class AlarmController extends BaseRmsController
         ]);
     }
 
-    public function storeSnapshot(Request $request, AlarmSnapshotProcessor $processor): JsonResponse
+    public function storeSnapshot(Request $request, AlarmSnapshotProcessor $processor, AlarmHistoryImporter $historyImporter): JsonResponse
     {
         $data=$request->validate([
             'robot_id'=>['required','integer','exists:robots,id'],
@@ -91,8 +112,10 @@ class AlarmController extends BaseRmsController
         $key=['robot_id'=>$data['robot_id'],'sampled_at'=>$data['sampled_at']];
         $snapshot=RobotAlarmSnapshot::firstOrCreate($key,$data);
         $result=$snapshot->wasRecentlyCreated ? $processor->process($snapshot) : ['state'=>'duplicate'];
+        $history=$historyImporter->import($snapshot);
         return response()->json([
             'data'=>$snapshot->fresh(),'created'=>$snapshot->wasRecentlyCreated,'parsing'=>$result,
+            'history_import'=>$history,
         ],$snapshot->wasRecentlyCreated?201:200);
     }
 }

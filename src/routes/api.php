@@ -92,6 +92,8 @@ Route::prefix('v1')
         // Global reads
         Route::get('/alarms/events', [AlarmController::class, 'events'])
             ->name('alarms.events.index');
+        Route::get('/alarms/history', [AlarmController::class, 'history'])
+            ->name('alarms.history.index');
         Route::get('/maintenance/plans', [MaintenancePlanController::class, 'index'])
             ->name('maintenance.plans.index');
         Route::get('/maintenance/plans/{maintenancePlan}', [MaintenancePlanController::class, 'show'])

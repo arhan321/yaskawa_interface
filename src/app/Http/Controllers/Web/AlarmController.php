@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
+use App\Models\RobotAlarmHistoryEntry;
 use App\Models\RobotAlarmSnapshot;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class AlarmController extends BaseRmsWebController
             'robot_id' => ['nullable', 'integer', 'exists:robots,id'], // Legacy bookmark support
             'status' => ['nullable', 'in:all,active,cleared,unknown'],
             'severity' => ['nullable', 'string', 'max:32'],
+            'category' => ['nullable', 'in:all,Major,Minor,UserSystem,User,Offline'],
             'search' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -38,12 +40,14 @@ class AlarmController extends BaseRmsWebController
 
         $eventsQuery = RobotAlarmEvent::query()->with('robot');
         $snapshotsQuery = RobotAlarmSnapshot::query()->with('robot');
+        $historyQuery = RobotAlarmHistoryEntry::query()->with('robot');
         $activeCountQuery = RobotAlarmEvent::query()->where('status', 'active');
 
         if ($selectedRobotIds !== []) {
             // Same robot selection applies to event table, snapshots and active count.
             $eventsQuery->whereIn('robot_id', $selectedRobotIds);
             $snapshotsQuery->whereIn('robot_id', $selectedRobotIds);
+            $historyQuery->whereIn('robot_id', $selectedRobotIds);
             $activeCountQuery->whereIn('robot_id', $selectedRobotIds);
         }
 
@@ -63,6 +67,13 @@ class AlarmController extends BaseRmsWebController
                 $query->where('alarm_code', 'ILIKE', $needle)
                     ->orWhere('alarm_name', 'ILIKE', $needle);
             });
+            $historyQuery->where(static function ($query) use ($needle): void {
+                $query->where('alarm_code', 'ILIKE', $needle)
+                    ->orWhere('alarm_name', 'ILIKE', $needle);
+            });
+        }
+        if (($filter['category'] ?? 'all') !== 'all') {
+            $historyQuery->where('category', $filter['category']);
         }
 
         return view('rms.alarms.index', [
@@ -77,6 +88,8 @@ class AlarmController extends BaseRmsWebController
                 ->orderByDesc('sampled_at')
                 ->orderByDesc('id')
                 ->limit(30)->get(),
+            'historyEntries' => $historyQuery->orderByDesc('first_observed_at')->orderByDesc('id')
+                ->paginate(20, ['*'], 'history_page')->withQueryString(),
             // Overall active count within chosen robots, regardless of status/search filter.
             'activeEventCount' => $activeCountQuery->count(),
             'filter' => $filter,

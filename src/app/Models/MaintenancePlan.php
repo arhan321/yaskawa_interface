@@ -12,6 +12,7 @@ class MaintenancePlan extends Model
 {
     protected $fillable = [
         'robot_id',
+        'component_category',
         'title',
         'description',
         'basis',
