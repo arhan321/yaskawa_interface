@@ -34,6 +34,9 @@
       <label class="field"><span>Robot code *</span><input class="input" name="robot_code" value="{{ old('robot_code') }}" placeholder="DOJO_SP210_R1" required></label>
       <label class="field"><span>Nama robot *</span><input class="input" name="name" value="{{ old('name') }}" placeholder="Yaskawa SP210 - DOJO" required></label>
       <label class="field"><span>Manipulator model *</span><input class="input" name="model" value="{{ old('model', 'SP210') }}" required></label>
+      <label class="field"><span>Serial Number *</span><input class="input" name="serial_number" value="{{ old('serial_number') }}" maxlength="120" required autocomplete="off"></label>
+      <label class="field"><span>Type (nameplate) *</span><input class="input" name="robot_type" value="{{ old('robot_type') }}" maxlength="120" required></label>
+      <label class="field"><span>Date (nameplate) *</span><input class="input" type="month" name="nameplate_date" value="{{ old('nameplate_date') }}" required></label>
       <label class="field"><span>Control group *</span><input class="input" name="control_group" value="{{ old('control_group', 'R1') }}" pattern="R[1-9][0-9]*" required><small>Contoh: R1, R2, R3.</small></label>
       <label class="field"><span>Jumlah axis *</span><input class="input" type="number" name="axis_count" value="{{ old('axis_count', 6) }}" min="1" max="16" required></label>
       <label class="field"><span>Line name</span><input class="input" name="line_name" value="{{ old('line_name') }}" placeholder="Welding Line 1"></label>

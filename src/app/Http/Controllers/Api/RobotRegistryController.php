@@ -43,6 +43,7 @@ class RobotRegistryController extends BaseRmsController
             'network_verification_message' => $probeResult['message'],
             'network_verification_latency_ms' => $probeResult['latency_ms'],
         ];
+
         return response()->json(['data' => ControllerModel::create($data)], 201);
     }
 
@@ -73,6 +74,7 @@ class RobotRegistryController extends BaseRmsController
             ];
         }
         $controller->update($data);
+
         return response()->json(['data' => $controller->refresh()]);
     }
 
@@ -83,6 +85,9 @@ class RobotRegistryController extends BaseRmsController
             'robot_code' => ['required', 'string', 'max:80', 'unique:robots,robot_code'],
             'name' => ['required', 'string', 'max:150'],
             'model' => ['sometimes', 'string', 'max:80'],
+            'serial_number' => ['required', 'string', 'max:120', 'unique:robots,serial_number'],
+            'robot_type' => ['required', 'string', 'max:120'],
+            'nameplate_date' => ['required', 'date_format:Y-m'],
             'control_group' => ['required', 'string', 'max:8'],
             'axis_count' => ['sometimes', 'integer', 'between:1,16'],
             'line_name' => ['nullable', 'string', 'max:100'],
@@ -96,6 +101,7 @@ class RobotRegistryController extends BaseRmsController
         if ($duplicatedGroup) {
             return response()->json(['message' => 'This control group is already registered on the controller.'], 422);
         }
+
         return response()->json(['data' => Robot::create($data)], 201);
     }
 
@@ -106,6 +112,9 @@ class RobotRegistryController extends BaseRmsController
             'robot_code' => ['sometimes', 'string', 'max:80', Rule::unique('robots', 'robot_code')->ignore($robot->id)],
             'name' => ['sometimes', 'string', 'max:150'],
             'model' => ['sometimes', 'string', 'max:80'],
+            'serial_number' => ['sometimes', 'required', 'string', 'max:120', Rule::unique('robots', 'serial_number')->ignore($robot->id)],
+            'robot_type' => ['sometimes', 'required', 'string', 'max:120'],
+            'nameplate_date' => ['sometimes', 'nullable', 'date_format:Y-m'],
             'control_group' => ['sometimes', 'string', 'max:8'],
             'axis_count' => ['sometimes', 'integer', 'between:1,16'],
             'line_name' => ['nullable', 'string', 'max:100'],
@@ -120,6 +129,7 @@ class RobotRegistryController extends BaseRmsController
             return response()->json(['message' => 'This control group is already registered on the controller.'], 422);
         }
         $robot->update($data);
+
         return response()->json(['data' => $robot->refresh()]);
     }
 }

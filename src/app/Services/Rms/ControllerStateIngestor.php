@@ -18,7 +18,7 @@ final class ControllerStateIngestor
             return false;
         }
 
-        $state = $raw['controller_state'] ?? null;
+        $state = app(ControllerStatePayload::class)->parse($raw);
         if (! is_array($state) || ($state['known'] ?? false) !== true) {
             return false;
         }

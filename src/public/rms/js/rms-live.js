@@ -1,5 +1,7 @@
 'use strict';
 
+import { updateRobotCard, updateRobotDetail, expireRobotSnapshot, invalidateInitialMonitor } from './robot-monitor.js';
+
 const AXES = ['S','L','U','R','B','T'];
 const STATUS_CLASSES = ['connected','offline','stale','unknown','healthy','warning','critical'];
 const COCKPIT_STATUS_LABELS = {
@@ -50,25 +52,11 @@ function badgeValue(r) {
     if (r.is_demo) return `DEMO · ${r.connectivity.toUpperCase()}`;
     return r.connectivity === 'connected' ? 'LIVE DATA' : r.connectivity.toUpperCase();
 }
-function updateCard(card, robot) {
-    if (!card || !robot) return;
-    const connection = one('.rms-badge', card);
-    addBadgeText(connection, badgeValue(robot), robot.connectivity);
-    readClass(card, robot.connectivity);
-    const readout = all('.robot-readout strong', card);
-    if (readout[2]) readout[2].textContent = robot.health.toUpperCase();
-    const stamp = one('.robot-bottom .between strong', card);
-    if (stamp) stamp.textContent = robot.last_sampled_wib?.split(' ').slice(-1)[0] || 'Belum ada';
-    const metrics = all('.rms-card-metrics span', card);
-    if (metrics[0]) metrics[0].textContent = `Alarm aktif: ${robot.alarm_count ?? '—'}`;
-    if (metrics[1]) metrics[1].textContent = `Operating: ${robot.operating_hours === null ? '—' : fmt(robot.operating_hours, 1) + ' h'}`;
-    card.dataset.rmsHealth = robot.health;
-    card.dataset.rmsConnectivity = robot.connectivity;
-}
+function updateCard(card, robot) { updateRobotCard(card, robot); }
+
 function updateCards(robots, page) {
     for (const card of all('.rms-robot-card')) {
-        const match = card.getAttribute('href')?.match(/\/rms\/robots\/(\d+)\/?(?:\?.*)?$/);
-        const robot = match ? robots.find(r => r.id === Number(match[1])) : null;
+        const robot = robots.find(r => Number(r.id) === Number(card.dataset.rmsRobotId));
         if (!robot) continue;
         updateCard(card, robot);
         if (page === 'monitor') {
@@ -121,7 +109,7 @@ function applyAxisPanel(panel, robot, isPulse) {
 }
 function addHistoryRow(robot, seenHistory) {
     if (!robot?.sample_id || robot.sample_id === seenHistory.id) return seenHistory;
-    const table = one('.rms-section-spaced .data-table tbody');
+    const table = one('[data-rms-history-rows]');
     if (!table) return {id:robot.sample_id};
     const tr = document.createElement('tr');
     const cells = [robot.last_sampled_wib ?? '—',robot.position_ok ? 'OK':'FAILED',robot.torque_ok?'OK':'FAILED',
@@ -131,17 +119,8 @@ function addHistoryRow(robot, seenHistory) {
     while (table.children.length > 120) table.lastElementChild.remove();
     return {id:robot.sample_id};
 }
-function updateDetail(robot) {
-    const status = all('.rms-detail-header .rms-header-status .rms-badge');
-    addBadgeText(status[0], badgeValue(robot), robot.connectivity);
-    addBadgeText(status[1],`HEALTH: ${robot.health.toUpperCase()}`,robot.health);
-    const facts = all('.rms-facts .fact strong');
-    if (facts[0]) facts[0].textContent = robot.last_sampled_wib ?? 'Belum ada';
-    if (facts[1]) facts[1].textContent = robot.operating_hours === null ? 'Belum terverifikasi':`${fmt(robot.operating_hours)} h`;
-    if (facts[2]) facts[2].textContent = robot.alarm_count ?? 'Belum diketahui';
-    const panels = all('.rms-detail-columns > section.panel');
-    applyAxisPanel(panels[0], robot, false); applyAxisPanel(panels[1], robot, true);
-}
+function updateDetail(robot) { updateRobotDetail(robot); }
+
 function updateCockpit(robot) {
     const pill = one('.cp-tags .cp-pill:last-child');
     if (pill) {
@@ -159,7 +138,7 @@ function updateCockpit(robot) {
         const detail=one('.cp-axis-measure small',row);
         const state=one('.cp-state',row);
         if (major) major.textContent=readable?fmt(value.torque,4):'—';
-        if (detail) detail.textContent=`Motor Torque · Position ${robot.position_ok ? fmt(value.pulse,0) : '—'} pulse`;
+        if (detail) detail.textContent=`Servo Monitor - Torq · Servo Monitor ${robot.position_ok ? fmt(value.pulse,0) : '—'} pulse`;
         if (state) {
             state.className='cp-state cp-'+value.status;
             state.textContent=COCKPIT_STATUS_LABELS[value.status] || 'STATUS TIDAK DIKETAHUI';
@@ -172,7 +151,8 @@ function updateCockpit(robot) {
 export function initRmsLive(Echo) {
     const root=one('.rms-app');
     const page=currentPage();
-    if (!root || page==='other') return;
+    if (!root || page==='other' || root.dataset.rmsLiveInitialized === '1') return;
+    root.dataset.rmsLiveInitialized = '1';
     const endpoint=root.dataset.rmsLiveEndpoint;
     const key=root.dataset.rmsLiveKey;
     const staleSeconds=Number(root.dataset.rmsStaleSeconds || 30);
@@ -211,6 +191,7 @@ export function initRmsLive(Echo) {
                 (demo?'AUTO UPDATE ACTIVE · DEMO':'AUTO UPDATE ACTIVE'),connected?'connected':'fallback');
         } catch(err) {
             console.warn('[RMS Live] Monitoring update failed:', err);
+            if (!latest) invalidateInitialMonitor(root);
             status('MONITORING DATA UNAVAILABLE · RETRYING','error');
         } finally {inflight=false;}
     }
@@ -219,11 +200,7 @@ export function initRmsLive(Echo) {
         const now=Date.now()+serverOffset;
         let anyStale=false;
         for(const r of latest.robots) {
-            if(r.connectivity==='connected' && (!r.last_sampled_at || now-Date.parse(r.last_sampled_at)>staleSeconds*1000)) {
-                r.connectivity='stale';r.health='unknown';r.torque_ok=false;r.position_ok=false;
-                for(const a of AXES)if(r.axes[a]){r.axes[a].torque=null;r.axes[a].pulse=null;r.axes[a].status='unavailable';}
-                anyStale=true;
-            }
+            anyStale = expireRobotSnapshot(r, now, staleSeconds) || anyStale;
         }
         if(anyStale){
             latest.summary.connected=latest.robots.filter(r=>r.connectivity==='connected').length;
@@ -232,7 +209,7 @@ export function initRmsLive(Echo) {
             if(page==='monitor')updateCards(latest.robots,page);
             if(page==='detail')updateDetail(latest.robots[0]);
             if(page==='cockpit')updateCockpit(latest.robots[0]);
-            status('TELEMETRY STALE · WAITING FOR DATA','stale');
+            if (latest.robots.some(r => r.connectivity === 'stale')) status('TELEMETRY STALE · WAITING FOR DATA','stale');
         }
     }
     reconcile();

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ asset('rms/css/laravel.css') }}?v=20261018-daihatsu2">
   <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/live.css') }}">
+  <link rel="stylesheet" href="{{ asset('rms/css/robot-monitor.css') }}?v=20261022">
   @stack('styles')
   <script src="{{ asset('rms/js/dashboard.js') }}?v=20261015-2315" defer></script>
   <script src="{{ asset('rms/js/rms-clock.js') }}?v=20261015-2315" defer></script>

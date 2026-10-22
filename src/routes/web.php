@@ -40,32 +40,32 @@
 |--------------------------------------------------------------------------
 */
 
-use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Web\AlarmController;
 // ============================================================
 // RMS WEB CONTROLLERS
 // ============================================================
 
-use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\RobotController;
-use App\Http\Controllers\Web\RobotLogController;
+use App\Http\Controllers\Web\AnalyticsController;
 use App\Http\Controllers\Web\CockpitController;
 use App\Http\Controllers\Web\CockpitLiveController;
-use App\Http\Controllers\Web\AlarmController;
-use App\Http\Controllers\Web\MaintenanceController;
-use App\Http\Controllers\Web\RecommendationController;
-use App\Http\Controllers\Web\AnalyticsController;
 use App\Http\Controllers\Web\ConnectionController;
-use App\Http\Controllers\Web\NotificationController;
-use App\Http\Controllers\Web\HardwareController;
+use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\FeatureController;
+use App\Http\Controllers\Web\HardwareController;
+use App\Http\Controllers\Web\HealthIntelligenceController;
+use App\Http\Controllers\Web\MaintenanceController;
+use App\Http\Controllers\Web\NotificationController;
+use App\Http\Controllers\Web\RecommendationController;
 use App\Http\Controllers\Web\RmsConfigurationController;
-
+use App\Http\Controllers\Web\RmsLiveController;
+use App\Http\Controllers\Web\RobotController;
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
 // ============================================================
 
-use App\Http\Controllers\Web\HealthIntelligenceController;
+use App\Http\Controllers\Web\RobotIdentityController;
+use App\Http\Controllers\Web\RobotLogController;
+use Illuminate\Support\Facades\Route;
 
 // ============================================================
 // 1. HOME
@@ -88,7 +88,7 @@ Route::prefix('rms')
 
         Route::get('/', [
             DashboardController::class,
-            'index'
+            'index',
         ])->name('overview');
 
         // ====================================================
@@ -97,27 +97,27 @@ Route::prefix('rms')
 
         Route::get('/robots/create', [
             RobotController::class,
-            'create'
+            'create',
         ])->name('robots.create');
 
         Route::post('/robots/probe', [
             RobotController::class,
-            'probe'
+            'probe',
         ])->middleware('throttle:20,1')->name('robots.probe');
 
         Route::post('/robots', [
             RobotController::class,
-            'store'
+            'store',
         ])->middleware('throttle:10,1')->name('robots.store');
 
         Route::get('/robots', [
             RobotController::class,
-            'index'
+            'index',
         ])->name('robots.index');
 
         Route::delete('/robots/{robot}', [
             RobotController::class,
-            'destroy'
+            'destroy',
         ])->middleware('throttle:10,1')->whereNumber('robot')->name('robots.destroy');
 
         // ====================================================
@@ -141,25 +141,25 @@ Route::prefix('rms')
 
         Route::get('/robots/{robot}/cockpit', [
             CockpitController::class,
-            'show'
+            'show',
         ])
-        ->whereNumber('robot')
-        ->name('robots.cockpit');
+            ->whereNumber('robot')
+            ->name('robots.cockpit');
 
         // Trusted-LAN configuration for evidence-backed threshold/reducer data.
         Route::get('/robots/{robot}/configuration', [
             RmsConfigurationController::class,
-            'edit'
+            'edit',
         ])->whereNumber('robot')->name('robots.configuration');
 
         Route::put('/robots/{robot}/configuration/threshold', [
             RmsConfigurationController::class,
-            'saveThreshold'
+            'saveThreshold',
         ])->whereNumber('robot')->middleware('throttle:30,1')->name('robots.configuration.threshold');
 
         Route::post('/robots/{robot}/configuration/reducer', [
             RmsConfigurationController::class,
-            'storeReducerMeasurement'
+            'storeReducerMeasurement',
         ])->whereNumber('robot')->middleware('throttle:20,1')->name('robots.configuration.reducer');
 
         // ====================================================
@@ -176,12 +176,19 @@ Route::prefix('rms')
         // ROBOT DETAIL
         // ====================================================
 
+        Route::get('/robots/{robot}/identity', [RobotIdentityController::class, 'edit'])
+            ->whereNumber('robot')->name('robots.identity');
+        Route::put('/robots/{robot}/identity', [RobotIdentityController::class, 'update'])
+            ->whereNumber('robot')->middleware('throttle:20,1')->name('robots.identity.update');
+        Route::put('/robots/{robot}/home-position', [RobotIdentityController::class, 'saveHome'])
+            ->whereNumber('robot')->middleware('throttle:20,1')->name('robots.home.update');
+
         Route::get('/robots/{robot}', [
             RobotController::class,
-            'show'
+            'show',
         ])
-        ->whereNumber('robot')
-        ->name('robots.show');
+            ->whereNumber('robot')
+            ->name('robots.show');
 
         // ====================================================
         // ROBOT LOG HISTORY
@@ -204,7 +211,7 @@ Route::prefix('rms')
 
         Route::get('/logs', [
             RobotLogController::class,
-            'index'
+            'index',
         ])->name('logs.index');
 
         // ====================================================
@@ -213,10 +220,10 @@ Route::prefix('rms')
 
         Route::get('/logs/export', [
             RobotLogController::class,
-            'export'
+            'export',
         ])
-        ->middleware('throttle:10,1')
-        ->name('logs.export');
+            ->middleware('throttle:10,1')
+            ->name('logs.export');
 
         // ====================================================
         // ALARM MONITORING
@@ -224,7 +231,7 @@ Route::prefix('rms')
 
         Route::get('/alarms', [
             AlarmController::class,
-            'index'
+            'index',
         ])->name('alarms.index');
 
         // ====================================================
@@ -233,25 +240,25 @@ Route::prefix('rms')
 
         Route::get('/maintenance', [
             MaintenanceController::class,
-            'index'
+            'index',
         ])->name('maintenance.index');
 
         // Operator-friendly preventive maintenance (NO login / NO verification).
         // CSRF is applied by Laravel web middleware; writes are rate-limited.
         // Controller additionally disables guest writes outside trusted environments.
         Route::post('/maintenance/plans', [
-            MaintenanceController::class, 'storePlan'
+            MaintenanceController::class, 'storePlan',
         ])->middleware('throttle:20,1')->name('maintenance.store');
 
         Route::patch('/maintenance/plans/{maintenancePlan}', [
-            MaintenanceController::class, 'updatePlan'
+            MaintenanceController::class, 'updatePlan',
         ])->whereNumber('maintenancePlan')
-          ->middleware('throttle:20,1')->name('maintenance.update');
+            ->middleware('throttle:20,1')->name('maintenance.update');
 
         Route::post('/maintenance/plans/{maintenancePlan}/complete', [
-            MaintenanceController::class, 'completeWork'
+            MaintenanceController::class, 'completeWork',
         ])->whereNumber('maintenancePlan')
-          ->middleware('throttle:20,1')->name('maintenance.complete');
+            ->middleware('throttle:20,1')->name('maintenance.complete');
 
         // ====================================================
         // MAINTENANCE RECOMMENDATION
@@ -259,7 +266,7 @@ Route::prefix('rms')
 
         Route::get('/recommendations', [
             RecommendationController::class,
-            'index'
+            'index',
         ])->name('recommendations.index');
 
         // ====================================================
@@ -268,23 +275,23 @@ Route::prefix('rms')
         // Existing GET /recommendations and all previous routes remain.
         // ====================================================
         Route::post('/recommendations/manual', [
-            RecommendationController::class, 'storeManual'
+            RecommendationController::class, 'storeManual',
         ])->middleware('throttle:20,1')->name('recommendations.manual.store');
 
         Route::post('/recommendations/{recommendation}/acknowledge', [
-            RecommendationController::class, 'acknowledge'
+            RecommendationController::class, 'acknowledge',
         ])->whereNumber('recommendation')
-          ->middleware('throttle:20,1')->name('recommendations.acknowledge');
+            ->middleware('throttle:20,1')->name('recommendations.acknowledge');
 
         Route::post('/recommendations/{recommendation}/action', [
-            RecommendationController::class, 'recordAction'
+            RecommendationController::class, 'recordAction',
         ])->whereNumber('recommendation')
-          ->middleware('throttle:20,1')->name('recommendations.action');
+            ->middleware('throttle:20,1')->name('recommendations.action');
 
         Route::post('/recommendations/{recommendation}/dismiss', [
-            RecommendationController::class, 'dismiss'
+            RecommendationController::class, 'dismiss',
         ])->whereNumber('recommendation')
-          ->middleware('throttle:20,1')->name('recommendations.dismiss');
+            ->middleware('throttle:20,1')->name('recommendations.dismiss');
 
         // ====================================================
         // DATA ANALYTICS
@@ -292,7 +299,7 @@ Route::prefix('rms')
 
         Route::get('/analytics', [
             AnalyticsController::class,
-            'index'
+            'index',
         ])->name('analytics.index');
 
         // ====================================================
@@ -301,7 +308,7 @@ Route::prefix('rms')
 
         Route::get('/connections', [
             ConnectionController::class,
-            'index'
+            'index',
         ])->name('connections.index');
 
         // ====================================================
@@ -310,7 +317,7 @@ Route::prefix('rms')
 
         Route::get('/notifications', [
             NotificationController::class,
-            'index'
+            'index',
         ])->name('notifications.index');
 
         // ====================================================
@@ -319,7 +326,7 @@ Route::prefix('rms')
 
         Route::get('/hardware', [
             HardwareController::class,
-            'index'
+            'index',
         ])->name('hardware.index');
 
         // ====================================================
@@ -328,7 +335,7 @@ Route::prefix('rms')
 
         Route::get('/features', [
             FeatureController::class,
-            'index'
+            'index',
         ])->name('features.index');
 
         // ====================================================
@@ -372,23 +379,23 @@ Route::prefix('rms')
         // Health Intelligence Overview - all registered robots
         Route::get('/health', [
             HealthIntelligenceController::class,
-            'index'
+            'index',
         ])->name('health.index');
 
         // Health Intelligence Detail - one robot
         Route::get('/health/{robot}', [
             HealthIntelligenceController::class,
-            'show'
+            'show',
         ])
-        ->whereNumber('robot')
-        ->name('health.show');
+            ->whereNumber('robot')
+            ->name('health.show');
 
         // ====================================================
         // RMS LIVE SNAPSHOT (read-only, same-origin JSON)
         // ====================================================
         Route::get('/live/snapshot', [
-            \App\Http\Controllers\Web\RmsLiveController::class,
-            'snapshot'
+            RmsLiveController::class,
+            'snapshot',
         ])->middleware('throttle:120,1')->name('live.snapshot');
 
     });

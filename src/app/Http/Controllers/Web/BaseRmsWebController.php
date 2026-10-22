@@ -13,6 +13,7 @@ use App\Models\RobotHealthAssessment;
 use App\Models\RobotOperatingTimeSample;
 use App\Models\RobotTelemetrySample;
 use App\Services\Rms\OperatingTimeDisplay;
+use App\Services\Rms\RobotMonitorDisplay;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -71,6 +72,9 @@ abstract class BaseRmsWebController extends Controller
         $operating = $this->latestPerRobot(RobotOperatingTimeSample::class, $ids, 'sampled_at', [
             'time_type' => 'ServoPowerOnTimeRobot',
         ]);
+        $controllerOperating = $this->latestPerRobot(RobotOperatingTimeSample::class, $ids, 'sampled_at', [
+            'time_type' => 'ControllerOnTime',
+        ]);
         $alarms = $this->latestPerRobot(RobotAlarmSnapshot::class, $ids, 'sampled_at');
         $connections = $this->latestPerRobot(RobotConnectionEvent::class, $ids, 'occurred_at');
         $health = $this->latestPerRobot(RobotHealthAssessment::class, $ids, 'evaluated_at');
@@ -84,9 +88,10 @@ abstract class BaseRmsWebController extends Controller
         $staleSeconds = max(5, (int) config('rms.telemetry_stale_seconds', 30));
         $now = now();
         $timeDisplay = app(OperatingTimeDisplay::class);
+        $monitorDisplay = app(RobotMonitorDisplay::class);
 
         return $robots->map(static function (Robot $robot) use (
-            $telemetry, $operating, $alarms, $connections, $health, $activeEvents, $now, $staleSeconds, $timeDisplay
+            $telemetry, $operating, $controllerOperating, $alarms, $connections, $health, $activeEvents, $now, $staleSeconds, $timeDisplay, $monitorDisplay
         ): array {
             $sample = $telemetry->get($robot->id);
             $time = $operating->get($robot->id);
@@ -102,7 +107,9 @@ abstract class BaseRmsWebController extends Controller
                 );
 
             // Fresh packets can establish data availability, not robot motion.
-            $freshGoodRead = $recent && ($sample->position_ok || $sample->torque_ok);
+            $freshGoodRead = $recent && ($sample->position_ok || $sample->torque_ok)
+                && $sample->sampled_at?->betweenIncluded($now->copy()->subSeconds(60), $now->copy()->addSeconds(5))
+                && data_get($sample->raw_payload, 'simulated') !== true;
             $explicitOffline = $connection !== null
                 && in_array($connection->state, ['offline', 'reconnecting', 'stopped'], true)
                 && ($freshnessAt === null || $connection->occurred_at >= $freshnessAt);
@@ -133,12 +140,14 @@ abstract class BaseRmsWebController extends Controller
                 'connection_event' => $connection,
                 'health_assessment' => $assessment,
                 'connectivity' => $connectivity,
-                'telemetry_fresh' => (bool) $freshGoodRead,
+                'telemetry_fresh' => (bool) ($freshGoodRead && $connectivity === 'connected'),
                 'last_sampled_at' => $sample?->sampled_at,
                 'last_received_at' => $sample?->received_at,
                 'active_alarm_count' => $alarmCount,
                 'operating_hours' => $operatingHours,
                 'operating_display' => $operatingDisplay,
+                'control_power_display' => $timeDisplay->forSample($controllerOperating->get($robot->id), 'ControllerOnTime'),
+                ...$monitorDisplay->forRobot($robot, $sample, $assessment, $connectivity === 'connected'),
                 'motion_state' => null,
                 'executing_job' => null,
                 'utilization_percent' => null,

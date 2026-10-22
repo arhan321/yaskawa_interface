@@ -1,6 +1,6 @@
 @extends('rms.layouts.app')
 @section('heading', 'Robot Cockpit')
-@section('subtitle', 'Motor Torque, Position, Threshold, dan Speed Reducer monitoring untuk kebutuhan teknisi.')
+@section('subtitle', 'Servo Monitor - Torq, Position, Threshold, dan Speed Reducer monitoring untuk kebutuhan teknisi.')
 @section('auto_refresh', 'off')
 @push('styles')
 <link rel="stylesheet" href="{{ asset('rms/css/cockpit.css') }}?v=20261020-cockpit-evidence">
@@ -31,6 +31,8 @@ $axisStateLabels = [
     <div><div class="cp-eyebrow">YASKAWA EQUIPMENT HEALTH / READ-ONLY</div><h2>{{ $robot->name }}</h2><p>{{ $robot->robot_code }} · {{ $robot->model }} · {{ $robot->control_group }} · {{ $robot->station_name ?: 'Station belum diatur' }}</p></div>
     <div class="cp-controller"><div>CONTROLLER</div><strong>{{ $robot->controller?->model ?? '—' }}</strong><small>{{ $robot->controller?->ip_address ?? 'IP belum didaftarkan' }}</small></div>
   </div>
+  @include('rms.partials.robot-identity-facts', ['robot' => $robot])
+  <a class="btn" href="{{ route('rms.robots.identity', $robot) }}">Edit identitas & home position</a>
   <div class="cp-metrics">
     <div><span>Last Telemetry</span><strong>{{ $latestTime ?? 'Belum tersedia' }}</strong><small>Waktu Indonesia Barat (WIB)</small></div>
     <div><span>Servo Operating Hours</span><strong data-rms-operating-status="{{ $operatingDisplay['status'] }}" title="{{ $operatingDisplay['caption'] }}">{{ $operatingDisplay['text'] }}</strong><small data-rms-operating-caption>{{ $operatingDisplay['caption'] }}</small></div>
@@ -91,23 +93,23 @@ $axisStateLabels = [
           @php($d=$axisStatus[$axis])
           <div class="cp-axis-item">
             <span class="cp-axis-letter">{{ $axis }}</span>
-            <div class="cp-axis-measure"><strong>{{ $d['value'] !== null ? number_format($d['value'],4,',','.') : '—' }}</strong><small>Motor Torque · Position {{ is_numeric($d['pulse']) ? number_format((float)$d['pulse'],0,',','.') : '—' }} pulse</small></div>
+            <div class="cp-axis-measure"><strong>{{ $d['value'] !== null ? number_format($d['value'],4,',','.') : '—' }}</strong><small>Servo Monitor - Torq · Servo Monitor {{ is_numeric($d['pulse']) ? number_format((float)$d['pulse'],0,',','.') : '—' }} pulse</small></div>
             <span class="cp-state cp-{{ $d['status'] }}">{{ $axisStateLabels[$d['status']] ?? 'STATUS TIDAK DIKETAHUI' }}</span>
           </div>
         @endforeach
       </div>
-      <div class="cp-smallnote"><strong>How to read:</strong> angka besar adalah Motor Torque Value dari controller. Instant Axis Status memakai satu pembacaan terbaru, sedangkan Threshold Event memerlukan 3 valid samples berturut-turut. Tanpa approved threshold, status ditampilkan sebagai <strong>NOT CONFIGURED</strong> dan tidak dianggap Normal.</div>
+      <div class="cp-smallnote"><strong>How to read:</strong> angka besar adalah Servo Monitor - Torq Value dari controller. Instant Axis Status memakai satu pembacaan terbaru, sedangkan Threshold Event memerlukan 3 valid samples berturut-turut. Tanpa approved threshold, status ditampilkan sebagai <strong>NOT CONFIGURED</strong> dan tidak dianggap Normal.</div>
     </section>
 
     <section class="cp-panel cp-torque-panel">
-      <header><div><span class="cp-kicker">MEASUREMENT HISTORY</span><h3>Motor Torque — All Axes</h3></div><span class="cp-panel-sub">Controller monitor value · unit pending verification</span></header>
+      <header><div><span class="cp-kicker">MEASUREMENT HISTORY</span><h3>Servo Monitor - Torq — All Axes</h3></div><span class="cp-panel-sub">Controller monitor value · unit pending verification</span></header>
       <div class="cp-chart-controls">
         <div class="cp-segment" role="group" aria-label="Mode grafik"><button type="button" data-mode="measurement" class="selected">Measurement</button><button type="button" data-mode="variation">Variation Δ</button></div>
         <div class="cp-periods" aria-label="Rentang historis">
           @foreach(['1h','8h','24h'] as $p)<a href="{{ route('rms.robots.cockpit', ['robot'=>$robot->id,'period'=>$p]) }}" class="{{ $period===$p?'selected':'' }}">{{ $p }}</a>@endforeach
         </div>
       </div>
-      <div class="cp-chart-frame"><canvas id="cp-torque-chart" width="940" height="420" role="img" aria-label="Motor Torque history for six robot axes"></canvas><div id="cp-torque-empty" class="cp-empty" hidden>Belum tersedia sampel Motor Torque yang valid pada rentang ini.</div></div>
+      <div class="cp-chart-frame"><canvas id="cp-torque-chart" width="940" height="420" role="img" aria-label="Servo Monitor - Torq history for six robot axes"></canvas><div id="cp-torque-empty" class="cp-empty" hidden>Belum tersedia sampel Servo Monitor - Torq yang valid pada rentang ini.</div></div>
       <div class="cp-chart-legend" id="cp-torque-legend">@foreach($axes as $axis)<button type="button" data-axis="{{ $axis }}" class="is-selected"><span class="cp-dot cp-dot-{{ $axis }}"></span>{{ $axis }}</button>@endforeach</div>
       <div class="cp-chart-bottom"><div>Pilih axis untuk show/hide garis. Threshold line hanya muncul untuk axis dengan approved threshold pada mode Measurement.</div><div><label for="cp-focus-axis">Threshold Axis</label><select id="cp-focus-axis">@foreach($axes as $axis)<option value="{{ $axis }}">{{ $axis }}</option>@endforeach</select></div></div>
       <div class="cp-smallnote"><strong>Variation Δ</strong> adalah selisih terhadap valid sample pertama pada time range yang dipilih. Grafik ini menunjukkan perubahan sederhana dan <strong>bukan algoritma OEM Yaskawa Cockpit</strong>.</div>
@@ -128,7 +130,7 @@ $axisStateLabels = [
       <div class="cp-chart-controls"><label for="cp-reducer-axis">Reducer / Axis</label><select id="cp-reducer-axis">@foreach($axes as $axis)<option value="{{ $axis }}">Axis {{ $axis }}</option>@endforeach</select></div>
       <div class="cp-chart-frame cp-reducer-chart"><canvas id="cp-reducer-chart" width="940" height="360" role="img" aria-label="Histori hasil inspeksi speed reducer"></canvas><div id="cp-reducer-empty" class="cp-empty" hidden>Belum ada pengukuran speed reducer terverifikasi dari sumber OEM.</div></div>
       <div class="cp-reducer-meta" id="cp-reducer-meta"></div>
-      <div class="cp-smallnote"><strong>Remaining Life</strong> hanya ditampilkan jika nilainya tersedia dan terverifikasi pada OEM/inspection evidence. RMS tidak mengubah Motor Torque menjadi prediksi umur reducer.</div>
+      <div class="cp-smallnote"><strong>Remaining Life</strong> hanya ditampilkan jika nilainya tersedia dan terverifikasi pada OEM/inspection evidence. RMS tidak mengubah Servo Monitor - Torq menjadi prediksi umur reducer.</div>
     </section>
   </div>
 

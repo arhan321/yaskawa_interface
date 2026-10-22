@@ -41,13 +41,9 @@ final class RmsLiveController extends BaseRmsWebController
             $isFresh = $freshnessAt?->betweenIncluded(
                 $now->copy()->subSeconds($staleSeconds), $now->copy()->addSeconds(5)
             ) && ($sample->torque_ok || $sample->position_ok);
-            $connected = $card['connectivity'] === 'connected' && $isFresh;
+            $connected = $card['connectivity'] === 'connected' && $isFresh && $card['telemetry_fresh'];
             $rules = $ruleRows->get($robot->id, collect())->keyBy('axis');
-            // Do not show a stored HEALTHY as current when sensor data is stale.
-            $healthFresh = $last?->evaluated_at?->betweenIncluded(
-                $now->copy()->subSeconds(max(60, $staleSeconds * 2)), $now->copy()->addSeconds(5)
-            );
-            $health = $connected && $healthFresh ? $last->health_status : 'unknown';
+            $health = $card['health_display']['status'];
             $axes = [];
             foreach (['S', 'L', 'U', 'R', 'B', 'T'] as $axis) {
                 $raw = $connected && $sample?->torque_ok && $sample->torque_unit === 'sdk_raw'
@@ -74,7 +70,7 @@ final class RmsLiveController extends BaseRmsWebController
             return [
                 'id' => $robot->id,
                 'code' => $robot->robot_code,
-                'is_demo' => str_starts_with($robot->robot_code, 'DEMO_') || str_contains($robot->name, '[DEMO]'),
+                'is_demo' => str_starts_with($robot->robot_code, 'DEMO_') || str_contains($robot->name, '[DEMO]') || data_get($sample?->raw_payload, 'simulated') === true,
                 'connectivity' => $card['connectivity'],
                 'last_sampled_at' => $sample?->sampled_at?->toIso8601String(),
                 'last_sampled_wib' => $sample?->sampled_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s'),
@@ -87,6 +83,13 @@ final class RmsLiveController extends BaseRmsWebController
                 'job_name' => $sample?->job_name ?: data_get($sample?->raw_payload, 'job.name'),
                 'axes' => $axes,
                 'health' => $health,
+                'health_label' => $card['health_display']['label'],
+                'health_reason' => $card['health_display']['reason'],
+                'health_valid_until' => $card['health_display']['valid_until'],
+                'servo' => $card['servo'],
+                'home_position' => $card['home_position'],
+                'identity' => ['serial_number' => $robot->serial_number, 'robot_type' => $robot->robot_type, 'nameplate_date' => $robot->nameplate_date],
+                'control_power_display' => $card['control_power_display'],
                 'last_health' => $last?->health_status,
                 'last_health_at' => $last?->evaluated_at?->toIso8601String(),
                 'alarm_count' => $alarmCount,

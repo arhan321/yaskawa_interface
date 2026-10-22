@@ -11,6 +11,7 @@
  @include('rms.partials.metric',['label'=>'Alarm aktif teridentifikasi','value'=>$summary['identified_active_alarms'],'unit'=>'event','description'=>'Hanya structured alarm'])
  @include('rms.partials.metric',['label'=>'Maintenance recommendation','value'=>$summary['open_recommendations'],'unit'=>'open','description'=>'Rekomendasi tersimpan'])
 </div>
+@include('rms.partials.health-legend')
 <section><div class="section-heading"><h2>Robot overview <span class="count">{{ $robots->count() }}</span></h2><div class="flex gap"><a class="btn" href="{{ route('rms.robots.index') }}">Seluruh robot →</a><a class="btn primary" href="{{ route('rms.robots.create') }}">＋ Tambah robot</a></div></div>
  @forelse($robots->chunk(4) as $group)
  <div class="robot-grid rms-robot-grid">@foreach($group as $item) @include('rms.partials.robot-card',['item'=>$item]) @endforeach</div>
@@ -31,5 +32,5 @@
  @empty @include('rms.partials.no-data',['message'=>'Belum ada maintenance plan aktif dengan tanggal due.']) @endforelse
  </section>
 </div>
-<div class="rms-note"><strong>Belum tersedia:</strong> status RUN/IDLE, Executing Job, I/O, dan Utilization belum tersedia dari sumber monitoring saat ini. Nilai yang belum terverifikasi tidak akan ditampilkan.</div>
+<div class="rms-note">Status servo berasal dari pembacaan controller. Health NORMAL memerlukan assessment lengkap dan segar. Home position mengikuti acuan yang diperiksa teknisi.</div>
 @endsection

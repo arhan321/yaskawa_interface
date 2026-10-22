@@ -16,8 +16,10 @@ class OperatingTimeDisplay
      *
      * @return array{hours:?float,seconds:?int,candidate_hours:?float,verified:bool,status:string,text:string,caption:string,sampled_at:?string,sampled_wib:?string}
      */
-    public function forSample(?RobotOperatingTimeSample $sample): array
+    public function forSample(?RobotOperatingTimeSample $sample, string $timeType = 'ServoPowerOnTimeRobot'): array
     {
+        $isServo = $timeType === 'ServoPowerOnTimeRobot';
+        $counterLabel = $isServo ? 'jam servo' : 'waktu controller';
         $sampledAt = $sample?->sampled_at;
         $sampledWib = $sampledAt?->timezone('Asia/Jakarta')->format('d M Y H:i:s');
         $display = [
@@ -27,12 +29,13 @@ class OperatingTimeDisplay
             'verified' => false,
             'status' => 'unavailable',
             'text' => 'Belum tersedia',
-            'caption' => 'Belum ada pembacaan jam servo.',
+            'caption' => 'Belum ada pembacaan '.$counterLabel.'.',
             'sampled_at' => $sampledAt?->toIso8601String(),
             'sampled_wib' => $sampledWib,
         ];
 
-        if ($sample === null || $sample->time_type !== 'ServoPowerOnTimeRobot') {
+        if ($sample === null || $sample->time_type !== $timeType
+            || ! in_array($timeType, ['ServoPowerOnTimeRobot', 'ControllerOnTime'], true)) {
             return $display;
         }
 
@@ -40,7 +43,7 @@ class OperatingTimeDisplay
         if (! $sample->read_ok) {
             return array_replace($display, [
                 'status' => 'read_failed',
-                'caption' => 'Pembacaan jam servo gagal'.$stamp,
+                'caption' => 'Pembacaan '.$counterLabel.' gagal'.$stamp,
             ]);
         }
 
@@ -55,7 +58,7 @@ class OperatingTimeDisplay
         }
 
         $raw = is_array($sample->raw_payload) ? $sample->raw_payload : [];
-        $verified = $storedSeconds !== null && $storedSeconds >= 0
+        $verified = $isServo && $storedSeconds !== null && $storedSeconds >= 0
             && (bool) config('rms_evidence.operating_text_verified', false)
             && ($raw['verified_for_pm'] ?? true) === true
             && ($raw['simulated'] ?? false) !== true;
@@ -68,7 +71,7 @@ class OperatingTimeDisplay
             'verified' => $verified,
             'status' => $verified ? 'verified' : 'unverified',
             'text' => number_format($seconds / 3600, 2, ',', '.').' h',
-            'caption' => ($verified ? 'Terverifikasi untuk PM' : 'Perlu pencocokan dengan pendant untuk PM').$stamp,
+            'caption' => ($isServo ? ($verified ? 'Terverifikasi untuk PM' : 'Perlu pencocokan dengan pendant untuk PM') : 'Controller Power On Time dari pembacaan SDK').$stamp,
         ]);
     }
 }

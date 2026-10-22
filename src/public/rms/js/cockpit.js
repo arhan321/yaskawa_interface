@@ -217,7 +217,7 @@
       }
     }
     const valid = drawChart(canvas, points, series, limits,
-      state.mode === 'variation' ? 'Variation Δ' : 'Motor Torque');
+      state.mode === 'variation' ? 'Variation Δ' : 'Servo Monitor - Torq');
     const empty = one('#cp-torque-empty');
     if (empty) empty.hidden = valid;
   }
@@ -306,7 +306,7 @@
       const detail = one('.cp-axis-measure small', row);
       const badge = one('.cp-state', row);
       if (main) main.textContent = fmt(value.value, 4);
-      if (detail) detail.textContent = `Motor Torque · Position ${fmt(value.pulse, 0)} pulse`;
+      if (detail) detail.textContent = `Servo Monitor - Torq · Servo Monitor ${fmt(value.pulse, 0)} pulse`;
       if (badge) {
         const status = ['unavailable', 'not_configured', 'normal', 'warning', 'critical']
           .includes(value.status) ? value.status : 'unavailable';
