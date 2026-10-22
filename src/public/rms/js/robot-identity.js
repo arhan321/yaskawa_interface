@@ -1,5 +1,6 @@
 'use strict';
 
+// Existing home-position capture (preserved). Read-only data access; never sends a robot command.
 document.querySelectorAll('[data-rms-home-form]').forEach(form => {
     const axes = ['S', 'L', 'U', 'R', 'B', 'T'];
     const button = form.querySelector('[data-rms-capture-home]');
@@ -42,6 +43,38 @@ document.querySelectorAll('[data-rms-home-form]').forEach(form => {
         } finally {
             clearTimeout(timeout);
             button.disabled = false;
+        }
+    });
+});
+
+// New master-data edit form: warns about controller/network changes before saving.
+// The PHP controller enforces all restrictions independently; JS is only a UX aid.
+document.querySelectorAll('[data-rms-edit-identity]').forEach(form => {
+    const fields = ['ip_address', 'control_group', 'axis_count']
+        .map(name => form.querySelector(`[name="${name}"]`)).filter(Boolean);
+    const warning = form.querySelector('[data-rms-hardware-warning]');
+    const confirmation = form.querySelector('[data-rms-confirm-hardware]');
+
+    function hasHardwareChange() {
+        return fields.some(input => String(input.value).trim().toUpperCase() !==
+            String(input.dataset.originalValue || '').trim().toUpperCase());
+    }
+    function updateWarning() {
+        if (warning) warning.hidden = !hasHardwareChange();
+    }
+    fields.forEach(input => input.addEventListener('input', () => {
+        if (confirmation && !hasHardwareChange()) confirmation.checked = false;
+        updateWarning();
+    }));
+    updateWarning();
+
+    form.addEventListener('submit', event => {
+        if (!hasHardwareChange()) return;
+        if (!confirmation?.checked) {
+            event.preventDefault();
+            if (warning) warning.hidden = false;
+            confirmation?.focus();
+            alert('Centang konfirmasi perubahan jaringan/control group/jumlah axis sebelum menyimpan.');
         }
     });
 });

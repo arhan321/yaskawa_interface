@@ -19,7 +19,10 @@
     </div>
     <div class="robot-bottom"><div class="between"><span>Last telemetry</span><strong>{{ $item['last_sampled_at']?->timezone('Asia/Jakarta')->format('H:i:s') ?? 'Belum ada' }}</strong></div><div class="between"><span data-rms-alarm-count>Alarm aktif: {{ $item['active_alarm_count'] ?? '—' }}</span><span>Home sesuai acuan</span></div></div>
   </a>
-  <form method="POST" action="{{ route('rms.robots.destroy', $r) }}" class="rms-robot-delete-form" onsubmit="return window.confirm(@js($deleteMessage));">
-    @csrf @method('DELETE')<button type="submit" class="btn danger small">Hapus robot</button>
-  </form>
+  <div class="rms-robot-card-actions" style="display:flex;justify-content:flex-end;align-items:center;gap:9px;flex-wrap:wrap;margin-top:8px;">
+    <a class="btn small" href="{{ route('rms.robots.identity', $r) }}">✎ Edit data robot</a>
+    <form method="POST" action="{{ route('rms.robots.destroy', $r) }}" class="rms-robot-delete-form" onsubmit="return window.confirm(@js($deleteMessage));">
+      @csrf @method('DELETE')<button type="submit" class="btn danger small">Hapus robot</button>
+    </form>
+  </div>
 </div>

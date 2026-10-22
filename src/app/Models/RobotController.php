@@ -34,8 +34,13 @@ class RobotController extends Model
         ];
     }
 
+    /**
+     * Table robots uses controller_id (NOT robot_controller_id).
+     * Eloquent's convention for this class would incorrectly guess
+     * robot_controller_id without an explicit foreign key.
+     */
     public function robots(): HasMany
     {
-        return $this->hasMany(Robot::class);
+        return $this->hasMany(Robot::class, 'controller_id', 'id');
     }
 }
